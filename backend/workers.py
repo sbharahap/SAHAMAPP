@@ -1,0 +1,316 @@
+"""
+AI Saham Indonesia — Background Workers & Jobs
+
+Modul ini mendefinisikan pekerjaan background (cron jobs) yang dijalankan oleh
+APScheduler, serta fungsi pembantu untuk inisialisasi awal database (seeding).
+"""
+
+import asyncio
+from datetime import date, datetime, timedelta, timezone
+from typing import Any
+
+from loguru import logger
+from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+from backend.config import settings
+from backend.db.postgres import (
+    async_session,
+    Saham,
+    Fundamental,
+    Makro,
+    Berita,
+    ScoringMingguan,
+)
+from backend.data.collectors.berita_collector import collect_berita_batch, collect_berita_pasar
+from backend.data.collectors.fundamental_collector import collect_fundamental_batch
+from backend.data.collectors.makro_collector import collect_makro
+from backend.data.preprocessors.data_cleaner import clean_berita, normalize_fundamental, hitung_sentimen_sederhana
+from backend.rag.indexer import index_batch_berita
+from backend.agents.scoring_agent import jalankan_scoring
+
+_WIB = timezone(timedelta(hours=7))
+
+# Daftar default saham Bluechip Indonesia (LQ45 / Kompas100 teratas)
+SAHAM_DEFAULT = [
+    {"kode": "BBCA", "nama_perusahaan": "Bank Central Asia Tbk", "sektor": "Financials", "sub_sektor": "Banks"},
+    {"kode": "BBRI", "nama_perusahaan": "Bank Rakyat Indonesia (Persero) Tbk", "sektor": "Financials", "sub_sektor": "Banks"},
+    {"kode": "BMRI", "nama_perusahaan": "Bank Mandiri (Persero) Tbk", "sektor": "Financials", "sub_sektor": "Banks"},
+    {"kode": "BBNI", "nama_perusahaan": "Bank Negara Indonesia (Persero) Tbk", "sektor": "Financials", "sub_sektor": "Banks"},
+    {"kode": "TLKM", "nama_perusahaan": "Telkom Indonesia (Persero) Tbk", "sektor": "Infrastructure", "sub_sektor": "Telecommunication"},
+    {"kode": "ASII", "nama_perusahaan": "Astra International Tbk", "sektor": "Consumer Discretionary", "sub_sektor": "Automotive"},
+    {"kode": "UNVR", "nama_perusahaan": "Unilever Indonesia Tbk", "sektor": "Consumer Staples", "sub_sektor": "Personal Care Product"},
+    {"kode": "ADRO", "nama_perusahaan": "Adaro Energy Indonesia Tbk", "sektor": "Energy", "sub_sektor": "Coal"},
+    {"kode": "GOTO", "nama_perusahaan": "GoTo Gojek Tokopedia Tbk", "sektor": "Technology", "sub_sektor": "Software & IT Services"},
+    {"kode": "KLBF", "nama_perusahaan": "Kalbe Farma Tbk", "sektor": "Healthcare", "sub_sektor": "Pharmaceuticals"},
+    {"kode": "ANTM", "nama_perusahaan": "Aneka Tambang Tbk", "sektor": "Basic Materials", "sub_sektor": "Metals & Mining"},
+    {"kode": "PGAS", "nama_perusahaan": "Perusahaan Gas Negara Tbk", "sektor": "Energy", "sub_sektor": "Utilities"},
+    {"kode": "ICBP", "nama_perusahaan": "Indofood CBP Sukses Makmur Tbk", "sektor": "Consumer Staples", "sub_sektor": "Processed Foods"},
+    {"kode": "INDF", "nama_perusahaan": "Indofood Sukses Makmur Tbk", "sektor": "Consumer Staples", "sub_sektor": "Processed Foods"},
+    {"kode": "UNTR", "nama_perusahaan": "United Tractors Tbk", "sektor": "Industrials", "sub_sektor": "Heavy Equipment"},
+    {"kode": "PTBA", "nama_perusahaan": "Bukit Asam Tbk", "sektor": "Energy", "sub_sektor": "Coal"},
+    {"kode": "MEDC", "nama_perusahaan": "Medco Energi Internasional Tbk", "sektor": "Energy", "sub_sektor": "Oil & Gas"},
+    {"kode": "BRIS", "nama_perusahaan": "Bank Syariah Indonesia Tbk", "sektor": "Financials", "sub_sektor": "Banks"},
+    {"kode": "AMRT", "nama_perusahaan": "Sumber Alfaria Trijaya Tbk", "sektor": "Consumer Staples", "sub_sektor": "Supermarkets & Convenience Stores"},
+    {"kode": "MDKA", "nama_perusahaan": "Merdeka Copper Gold Tbk", "sektor": "Basic Materials", "sub_sektor": "Metals & Mining"},
+]
+
+
+async def seed_saham_if_empty() -> None:
+    """
+    Mengisi data master saham jika tabel saham masih kosong.
+    """
+    logger.info("🌱 Mengecek master data saham...")
+    async with async_session() as session:
+        result = await session.execute(select(Saham).limit(1))
+        existing = result.scalars().first()
+
+        if not existing:
+            logger.info(f"🌱 Tabel saham kosong, mengisi dengan {len(SAHAM_DEFAULT)} saham default...")
+            for item in SAHAM_DEFAULT:
+                new_saham = Saham(
+                    kode=item["kode"],
+                    nama_perusahaan=item["nama_perusahaan"],
+                    sektor=item["sektor"],
+                    sub_sektor=item["sub_sektor"],
+                    tanggal_listing=None,
+                )
+                session.add(new_saham)
+            await session.commit()
+            logger.info("🌱 Seeding saham selesai.")
+        else:
+            logger.info("🌱 Master data saham sudah terisi.")
+
+
+async def scrape_news_job() -> None:
+    """
+    Background job untuk melakukan scraping berita saham dan berita pasar umum.
+    Berita disimpan ke PostgreSQL, dianalisis sentimennya, dan dimasukkan ke ChromaDB (RAG).
+    Dijalankan tiap 30 menit.
+    """
+    logger.info("⏰ Memulai background job: Scraping Berita...")
+    try:
+        # 1. Ambil daftar semua kode saham dari PostgreSQL
+        async with async_session() as session:
+            result = await session.execute(select(Saham.kode))
+            kode_saham_list = [row for row in result.scalars().all()]
+
+        if not kode_saham_list:
+            logger.warning("⚠️ Tidak ada kode saham terdaftar di DB. Skip scraping berita.")
+            return
+
+        # 2. Collect berita untuk semua saham (batch)
+        logger.info(f"📰 Scraping berita untuk {len(kode_saham_list)} saham...")
+        raw_berita = await collect_berita_batch(kode_saham_list, hari_terakhir=3)
+
+        # 3. Collect berita pasar umum
+        logger.info("🌐 Scraping berita pasar umum...")
+        raw_berita_pasar = await collect_berita_pasar(hari_terakhir=2)
+        raw_berita.extend(raw_berita_pasar)
+
+        # 4. Clean data, analisis sentimen, dan simpan ke PostgreSQL
+        saved_count = 0
+        async with async_session() as session:
+            for item in raw_berita:
+                try:
+                    # Clean data
+                    cleaned = clean_berita(item)
+                    # Hitung sentimen
+                    cleaned["skor_sentimen"] = hitung_sentimen_sederhana(cleaned["judul"])
+
+                    # Gunakan PostgreSQL insert ON CONFLICT DO NOTHING
+                    stmt = pg_insert(Berita).values(
+                        kode_saham=cleaned["kode_saham"],
+                        judul=cleaned["judul"],
+                        url=cleaned["url"],
+                        sumber=cleaned["sumber"],
+                        tanggal_publish=cleaned["tanggal_publish"],
+                        skor_sentimen=cleaned["skor_sentimen"],
+                        sudah_diembedding=False
+                    )
+                    stmt = stmt.on_conflict_do_nothing(index_elements=["url"])
+                    res = await session.execute(stmt)
+                    if res.rowcount > 0:
+                        saved_count += 1
+                except Exception as e:
+                    logger.error(f"❌ Gagal memproses single berita '{item.get('judul', '')[:30]}': {e}")
+            await session.commit()
+
+        logger.info(f"💾 {saved_count} berita baru berhasil disimpan ke PostgreSQL.")
+
+        # 5. Ambil berita yang belum di-embed dari PostgreSQL, kirim ke ChromaDB
+        async with async_session() as session:
+            stmt = select(Berita).where(Berita.sudah_diembedding == False)
+            result = await session.execute(stmt)
+            unembedded_news = result.scalars().all()
+
+            if unembedded_news:
+                logger.info(f"🧠 Melakukan embedding untuk {len(unembedded_news)} berita baru ke ChromaDB...")
+                
+                # Ubah model SQLAlchemy ke format list of dict untuk indexer
+                berita_dict_list = []
+                for n in unembedded_news:
+                    berita_dict_list.append({
+                        "id": n.id,
+                        "kode_saham": n.kode_saham,
+                        "judul": n.judul,
+                        "url": n.url,
+                        "sumber": n.sumber,
+                        "tanggal_publish": n.tanggal_publish,
+                    })
+
+                # Jalankan indexing
+                stats = await index_batch_berita(berita_dict_list)
+                
+                if stats["berhasil"] > 0:
+                    # Update status sudah_diembedding di Postgres
+                    success_urls = [n["url"] for n in berita_dict_list]
+                    # Kita lakukan chunk update status
+                    for n in unembedded_news:
+                        if n.url in success_urls:
+                            n.sudah_diembedding = True
+                    await session.commit()
+                    logger.info(f"✅ Embedding selesai: {stats['berhasil']} berita ter-index ke ChromaDB.")
+            else:
+                logger.info("🧠 Tidak ada berita baru untuk di-embed.")
+
+    except Exception as e:
+        logger.error(f"❌ Gagal menjalankan scraping berita: {e}")
+    logger.info("⏰ Background job: Scraping Berita selesai.")
+
+
+async def scrape_fundamental_job() -> None:
+    """
+    Background job untuk memperbarui data fundamental dan harga harian emiten.
+    Dijalankan tiap hari.
+    """
+    logger.info("⏰ Memulai background job: Scraping Fundamental...")
+    try:
+        # 1. Ambil daftar semua kode saham
+        async with async_session() as session:
+            result = await session.execute(select(Saham.kode))
+            kode_saham_list = [row for row in result.scalars().all()]
+
+        if not kode_saham_list:
+            logger.warning("⚠️ Tidak ada kode saham terdaftar di DB.")
+            return
+
+        # 2. Collect fundamental dari Yahoo Finance
+        logger.info(f"📊 Mengambil fundamental untuk {len(kode_saham_list)} saham...")
+        raw_fund = await collect_fundamental_batch(kode_saham_list, batch_size=10)
+
+        # 3. Bersihkan dan simpan ke PostgreSQL
+        saved_count = 0
+        async with async_session() as session:
+            for item in raw_fund:
+                try:
+                    cleaned = normalize_fundamental(item)
+
+                    # Simpan/Upsert ke fundamental harian
+                    # Kombinasi (kode_saham, tanggal) unik
+                    stmt = pg_insert(Fundamental).values(
+                        kode_saham=cleaned["kode_saham"],
+                        tanggal=cleaned["tanggal"],
+                        harga_terakhir=cleaned["harga_terakhir"],
+                        volume=cleaned["volume"],
+                        roe=cleaned["roe"],
+                        eps=cleaned["eps"],
+                        pbv=cleaned["pbv"],
+                        der=cleaned["der"],
+                        market_cap=cleaned["market_cap"],
+                        pe_ratio=cleaned["pe_ratio"],
+                        dividend_yield=cleaned["dividend_yield"]
+                    )
+                    
+                    # Update jika duplikat di hari yang sama
+                    stmt = stmt.on_conflict_do_update(
+                        constraint="uq_fundamental_kode_tanggal",
+                        set_={
+                            "harga_terakhir": cleaned["harga_terakhir"],
+                            "volume": cleaned["volume"],
+                            "roe": cleaned["roe"],
+                            "eps": cleaned["eps"],
+                            "pbv": cleaned["pbv"],
+                            "der": cleaned["der"],
+                            "market_cap": cleaned["market_cap"],
+                            "pe_ratio": cleaned["pe_ratio"],
+                            "dividend_yield": cleaned["dividend_yield"]
+                        }
+                    )
+                    await session.execute(stmt)
+                    saved_count += 1
+                except Exception as e:
+                    logger.error(f"❌ Gagal memproses fundamental {item.get('kode_saham', '')}: {e}")
+            await session.commit()
+        logger.info(f"💾 {saved_count} data fundamental berhasil disimpan/diperbarui di PostgreSQL.")
+
+    except Exception as e:
+        logger.error(f"❌ Gagal menjalankan scraping fundamental: {e}")
+    logger.info("⏰ Background job: Scraping Fundamental selesai.")
+
+
+async def scrape_makro_job() -> None:
+    """
+    Background job untuk memperbarui data makroekonomi (BI rate, Inflasi, kurs USD/IDR, IHSG).
+    Dijalankan tiap hari.
+    """
+    logger.info("⏰ Memulai background job: Scraping Makroekonomi...")
+    try:
+        raw_makro = await collect_makro()
+
+        saved_count = 0
+        async with async_session() as session:
+            for item in raw_makro:
+                try:
+                    stmt = pg_insert(Makro).values(
+                        tanggal=item["tanggal"],
+                        indikator=item["indikator"],
+                        nilai=item["nilai"],
+                        satuan=item["satuan"],
+                        sumber=item["sumber"]
+                    )
+                    # Update jika tanggal & indikator duplikat
+                    stmt = stmt.on_conflict_do_update(
+                        constraint="uq_makro_indikator_tanggal",
+                        set_={
+                            "nilai": item["nilai"],
+                            "satuan": item["satuan"],
+                            "sumber": item["sumber"]
+                        }
+                    )
+                    await session.execute(stmt)
+                    saved_count += 1
+                except Exception as e:
+                    logger.error(f"❌ Gagal memproses data makro {item.get('indikator', '')}: {e}")
+            await session.commit()
+        logger.info(f"💾 {saved_count} data makroekonomi berhasil disimpan/diperbarui.")
+
+    except Exception as e:
+        logger.error(f"❌ Gagal menjalankan scraping makroekonomi: {e}")
+    logger.info("⏰ Background job: Scraping Makroekonomi selesai.")
+
+
+async def run_scoring_job() -> None:
+    """
+    Background job untuk melakukan scoring mingguan (top 10 rekomendasi).
+    Dijalankan setiap hari Senin jam 06:00 pagi.
+    """
+    logger.info("⏰ Memulai background job: Scoring Rekomendasi Mingguan...")
+    try:
+        # 1. Ambil daftar semua kode saham
+        async with async_session() as session:
+            result = await session.execute(select(Saham.kode))
+            kode_saham_list = [row for row in result.scalars().all()]
+
+        if not kode_saham_list:
+            logger.warning("⚠️ Tidak ada kode saham terdaftar untuk di-scoring.")
+            return
+
+        # 2. Jalankan pipeline scoring
+        logger.info(f"🚀 Menjalankan scoring untuk {len(kode_saham_list)} saham...")
+        await jalankan_scoring(kode_saham_list, simpan_ke_db=True)
+        logger.info("✅ Scoring rekomendasi mingguan selesai.")
+
+    except Exception as e:
+        logger.error(f"❌ Gagal menjalankan scoring mingguan: {e}")
+    logger.info("⏰ Background job: Scoring selesai.")

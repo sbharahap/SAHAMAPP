@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Saham Indonesia — Rekomendasi & RAG Chatbot</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Styling -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-chart-line-up"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>AI SAHAM</h1>
+                    <span>INDONESIA</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="recommendations">
+                    <i class="fa-solid fa-trophy"></i>
+                    <span>Top 10 Rekomendasi</span>
+                </button>
+                <button class="nav-item" data-tab="chatbot">
+                    <i class="fa-solid fa-robot"></i>
+                    <span>RAG Chatbot AI</span>
+                </button>
+                <button class="nav-item" data-tab="admin">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>Sistem & Control</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-badge">
+                    <span class="status-dot online"></span>
+                    <span class="status-text">Server Lokal Aktif</span>
+                </div>
+                <div class="model-info">
+                    <i class="fa-solid fa-brain"></i>
+                    <span>Qwen3 8B & BGE-M3</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="app-header">
+                <div class="header-title">
+                    <h2 id="page-title">Top 10 Rekomendasi Saham</h2>
+                    <p id="page-subtitle">Rekomendasi model AI terbaik untuk minggu ini berdasarkan analisis multi-faktor.</p>
+                </div>
+                <div class="header-actions">
+                    <div class="date-display">
+                        <i class="fa-regular fa-calendar"></i>
+                        <span id="current-date">Kamis, 28 Mei 2026</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- TAB 1: RECOMMENDATIONS -->
+            <section id="tab-recommendations" class="tab-content active">
+                <div class="info-banner">
+                    <div class="banner-icon">
+                        <i class="fa-solid fa-circle-info"></i>
+                    </div>
+                    <div class="banner-text">
+                        <strong>Bagaimana scoring bekerja?</strong> Model kami menganalisis saham setiap Senin pagi (06:00 WIB) dengan bobot adaptif menyesuaikan kondisi pasar makro. Skor total dihitung dari: Fundamental (30%), Sentimen Berita (25%), Sektor (20%), Makroekonomi (15%), dan Risiko (10%).
+                    </div>
+                </div>
+
+                <div class="recommendations-header">
+                    <div class="rec-date">
+                        <span>Periode Scoring: </span>
+                        <strong id="scoring-date-display">Mengambil data...</strong>
+                    </div>
+                    <button class="btn btn-secondary" id="btn-refresh-rec">
+                        <i class="fa-solid fa-arrows-rotate"></i> Perbarui Data
+                    </button>
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading-container" id="rec-loading">
+                    <div class="spinner"></div>
+                    <p>Menganalisis data scoring saham dari database...</p>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state hidden" id="rec-empty">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <h3>Belum Ada Hasil Scoring</h3>
+                    <p>Sistem belum mendeteksi adanya scoring mingguan terbaru di database. Anda dapat memicu scoring pertama kali di menu Sistem & Control.</p>
+                    <button class="btn btn-primary" onclick="switchTab('admin')">Buka Menu Sistem & Control</button>
+                </div>
+
+                <!-- Recommendations Grid -->
+                <div class="recommendations-grid hidden" id="rec-grid">
+                    <!-- Cards will be injected dynamically by JS -->
+                </div>
+            </section>
+
+            <!-- TAB 2: CHATBOT -->
+            <section id="tab-chatbot" class="tab-content">
+                <div class="chat-wrapper">
+                    <!-- Left sidebar / Suggestions -->
+                    <div class="chat-sidebar">
+                        <h3>Asisten AI Saham</h3>
+                        <p>Ajukan pertanyaan dalam Bahasa Indonesia seputar kinerja keuangan emiten, perbandingan saham, atau proyeksi makroekonomi.</p>
+                        
+                        <div class="suggestion-group">
+                            <h4>Pertanyaan Contoh:</h4>
+                            <button class="suggest-chip" data-query="Bagaimana kinerja fundamental BBCA terbaru?">
+                                <i class="fa-solid fa-magnifying-glass-chart"></i> Kinerja BBCA
+                            </button>
+                            <button class="suggest-chip" data-query="Bandingkan fundamental saham perbankan BBCA vs BBRI.">
+                                <i class="fa-solid fa-code-compare"></i> BBCA vs BBRI
+                            </button>
+                            <button class="suggest-chip" data-query="Bagaimana pengaruh kenaikan suku bunga BI Rate terhadap sektor properti?">
+                                <i class="fa-solid fa-building-columns"></i> Dampak BI Rate
+                            </button>
+                            <button class="suggest-chip" data-query="Sebutkan top 3 saham dengan dividend yield tertinggi saat ini?">
+                                <i class="fa-solid fa-hand-holding-dollar"></i> Dividen Tertinggi
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Chat Window Area -->
+                    <div class="chat-main">
+                        <div class="chat-messages" id="chat-messages-container">
+                            <!-- Welcome Message -->
+                            <div class="message system-msg">
+                                <div class="msg-avatar">
+                                    <i class="fa-solid fa-robot"></i>
+                                </div>
+                                <div class="msg-bubble">
+                                    Halo! Saya adalah Asisten AI Saham Indonesia. Saya dibekali dengan **RAG (Retrieval-Augmented Generation)** lokal yang mengambil dokumen berita terbaru dari ChromaDB dan data keuangan dari PostgreSQL.
+                                    <br><br>
+                                    Silakan tanyakan apa saja tentang emiten IDX atau kondisi ekonomi makro kita.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Typing Indicator -->
+                        <div class="typing-indicator hidden" id="typing-indicator">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <p>AI sedang mencari dokumen RAG dan mengetik jawaban...</p>
+                        </div>
+
+                        <!-- Chat Input Box -->
+                        <div class="chat-input-area">
+                            <form id="chat-form">
+                                <input type="text" id="chat-input" placeholder="Tulis pertanyaan Anda di sini... (contoh: Apakah ADRO aman dibeli sekarang?)" autocomplete="off">
+                                <button type="submit" class="btn btn-primary" id="btn-send-chat">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                </button>
+                            </form>
+                            <span class="disclaimer">Disclaimer: Informasi ini dihasilkan oleh kecerdasan buatan lokal dan bukan saran investasi profesional.</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: ADMIN & CONTROL -->
+            <section id="tab-admin" class="tab-content">
+                <!-- Status Cards -->
+                <div class="admin-grid-top">
+                    <div class="status-card glass">
+                        <div class="card-icon blue"><i class="fa-solid fa-database"></i></div>
+                        <div class="card-info">
+                            <h3>Database PostgreSQL</h3>
+                            <div class="stat-row"><span>Saham Dipantau:</span> <strong id="stat-saham">-</strong></div>
+                            <div class="stat-row"><span>Data Fundamental:</span> <strong id="stat-fundamental">-</strong></div>
+                            <div class="stat-row"><span>Indikator Makro:</span> <strong id="stat-makro">-</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="status-card glass">
+                        <div class="card-icon purple"><i class="fa-solid fa-vector-square"></i></div>
+                        <div class="card-info">
+                            <h3>Vektor DB (ChromaDB)</h3>
+                            <div class="stat-row"><span>Total Berita RSS:</span> <strong id="stat-berita">-</strong></div>
+                            <div class="stat-row"><span>Model Embedding:</span> <strong>BGE-M3 (Lokal)</strong></div>
+                            <div class="stat-row"><span>Device Inference:</span> <strong>Apple Silicon MPS</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="status-card glass">
+                        <div class="card-icon amber"><i class="fa-solid fa-clock"></i></div>
+                        <div class="card-info">
+                            <h3>Scheduler (APScheduler)</h3>
+                            <div class="stat-row"><span>Status:</span> <strong id="stat-scheduler-status">-</strong></div>
+                            <div class="stat-row"><span>Scoring Terakhir:</span> <strong id="stat-last-scoring">-</strong></div>
+                            <div class="stat-row"><span>Total Run Scoring:</span> <strong id="stat-total-scoring">-</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-grid-main">
+                    <!-- Control Actions Panel -->
+                    <div class="panel glass">
+                        <div class="panel-header">
+                            <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Kendali Manual Pekerjaan</h3>
+                            <p>Jalankan modul pengumpul data dan scoring secara manual di luar jadwal reguler.</p>
+                        </div>
+                        
+                        <div class="panel-body">
+                            <div class="action-row">
+                                <div class="action-desc">
+                                    <h4>Koleksi Berita & Embedding</h4>
+                                    <p>Mengambil berita saham dari RSS feeds (Google News & Kontan), menganalisis sentimen, dan membuat embedding RAG ke ChromaDB.</p>
+                                </div>
+                                <button class="btn btn-primary" onclick="triggerJob('scrape_news', this)">
+                                    <i class="fa-solid fa-play"></i> Jalankan
+                                </button>
+                            </div>
+
+                            <div class="action-row">
+                                <div class="action-desc">
+                                    <h4>Perbarui Fundamental Saham</h4>
+                                    <p>Mengambil data rasio keuangan (ROE, EPS, PBV, DER) dan harga penutupan harian terbaru dari Yahoo Finance untuk seluruh emiten.</p>
+                                </div>
+                                <button class="btn btn-primary" onclick="triggerJob('scrape_fundamental', this)">
+                                    <i class="fa-solid fa-play"></i> Jalankan
+                                </button>
+                            </div>                             <div class="action-row">
+                                <div class="action-desc">
+                                    <h4>Perbarui Indikator Makro</h4>
+                                    <p>Mengambil data BI Rate terbaru dari BI, kurs USD/IDR, serta nilai indeks IHSG untuk kalkulasi scoring makroekonomi.</p>
+                                </div>
+                                <button class="btn btn-primary" onclick="triggerJob('scrape_makro', this)">
+                                    <i class="fa-solid fa-play"></i> Jalankan
+                                </button>
+                            </div>
+
+                            <div class="action-row">
+                                <div class="action-desc">
+                                    <h4>Cek Fluktuasi Sentimen & Alert</h4>
+                                    <p>Menjalankan Alert Agent untuk memantau fluktuasi sentimen berdasarkan berita 2 hari terakhir. Jika delta > 10 poin, trigger push notification ke iPhone.</p>
+                                </div>
+                                <button class="btn btn-primary" onclick="triggerJob('run_alerts', this)">
+                                    <i class="fa-solid fa-play"></i> Jalankan
+                                </button>
+                            </div>
+
+                            <div class="action-row highlight">
+                                <div class="action-desc">
+                                    <h4>Jalankan Scoring Rekomendasi</h4>
+                                    <p>Memicu LangGraph Scoring Agent untuk menganalisis seluruh saham pantauan berdasarkan data terbaru, dan generate analisis ringkas via Qwen3.</p>
+                                </div>
+                                <button class="btn btn-accent" onclick="triggerJob('run_scoring', this)">
+                                    <i class="fa-solid fa-bolt"></i> Jalankan Scoring
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manage Stocks Panel -->
+                    <div class="panel glass">
+                        <div class="panel-header">
+                            <h3><i class="fa-solid fa-list-check"></i> Daftar Saham yang Dipantau</h3>
+                            <p>Kelola daftar kode emiten saham Indonesia yang di-scrape dan di-score oleh sistem.</p>
+                        </div>
+                        <div class="panel-body">
+                            <form id="add-saham-form" class="inline-form">
+                                <input type="text" id="new-kode" placeholder="Kode (e.g. TLKM)" required maxlength="10">
+                                <input type="text" id="new-nama" placeholder="Nama Perusahaan" required>
+                                <input type="text" id="new-sektor" placeholder="Sektor" required>
+                                <button type="submit" class="btn btn-secondary"><i class="fa-solid fa-plus"></i> Tambah</button>
+                            </form>
+
+                            <div class="stocks-table-container">
+                                <table class="admin-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Kode</th>
+                                            <th>Nama Perusahaan</th>
+                                            <th>Sektor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="saham-table-body">
+                                        <tr>
+                                            <td colspan="3" class="text-center">Mengambil data emiten...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alert History Panel -->
+                    <div class="panel glass">
+                        <div class="panel-header">
+                            <h3><i class="fa-solid fa-bell"></i> Riwayat Alert Sentimen Saham</h3>
+                            <p>Daftar alert fluktuasi sentimen saham yang terpicu (> 10 poin) dan terkirim ke iPhone.</p>
+                        </div>
+                        <div class="panel-body">
+                            <div class="stocks-table-container" style="max-height: 312px;">
+                                <table class="admin-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Saham</th>
+                                            <th>Waktu</th>
+                                            <th>Delta</th>
+                                            <th>Pesan Alert</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alert-table-body">
+                                        <tr>
+                                            <td colspan="4" class="text-center">Mengambil data alert...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scheduler Jobs Info -->
+                <div class="panel glass scheduler-panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-calendar-days"></i> Pekerjaan Terjadwal Aktif</h3>
+                    </div>
+                    <div class="panel-body">
+                        <ul class="jobs-list" id="scheduler-jobs-list">
+                            <li>Mengambil jadwal pekerjaan...</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Scripting -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

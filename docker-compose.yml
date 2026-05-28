@@ -1,0 +1,76 @@
+# docker-compose.yml
+# Infrastruktur AI Saham Indonesia: PostgreSQL + ChromaDB
+# Jalankan dengan: docker compose up -d
+
+services:
+  # ============================================================
+  # PostgreSQL 16 — Database relasional untuk data fundamental,
+  # harga saham, makroekonomi, dan skor sentimen
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: saham_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-saham_db}
+      POSTGRES_USER: ${POSTGRES_USER:-saham_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-saham_secret_2024}
+      # Konfigurasi performa untuk Apple Silicon 16GB RAM
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-saham_user} -d ${POSTGRES_DB:-saham_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Tuning PostgreSQL untuk mesin dengan 16GB RAM
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=1GB
+        -c work_mem=64MB
+        -c maintenance_work_mem=128MB
+        -c max_connections=50
+        -c random_page_cost=1.1
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c log_min_duration_statement=1000
+
+  # ============================================================
+  # ChromaDB — Database vektor untuk embedding berita,
+  # laporan keuangan, dan transkrip analis
+  # ============================================================
+  chromadb:
+    image: chromadb/chroma:0.6.3
+    container_name: saham_chromadb
+    restart: unless-stopped
+    environment:
+      # Autentikasi ChromaDB (opsional, aktifkan di production)
+      CHROMA_SERVER_AUTHN_CREDENTIALS: ${CHROMA_SERVER_AUTHN_CREDENTIALS:-}
+      CHROMA_SERVER_AUTHN_PROVIDER: ${CHROMA_SERVER_AUTHN_PROVIDER:-}
+      # Batasi penggunaan memori
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    ports:
+      - "${CHROMA_PORT:-8000}:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/api/v1/heartbeat\")'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+# Volume persistent — data aman meskipun container di-restart/rebuild
+volumes:
+  postgres_data:
+    driver: local
+    name: saham_postgres_data
+  chroma_data:
+    driver: local
+    name: saham_chroma_data
