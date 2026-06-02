@@ -131,7 +131,8 @@ async def collect_bi_rate() -> dict[str, Any] | None:
     Strategi pengambilan data (berurutan):
     1. Scrape halaman publik Bank Indonesia
     2. Jika gagal, coba dari halaman data moneter BI
-    3. Jika semua gagal, return None (caller bisa gunakan cache)
+    3. Jika gagal, ambil nilai terbaru yang ada di database PostgreSQL (cache)
+    4. Jika semua gagal, return None (caller bisa gunakan cache)
 
     Returns:
         Dict dengan format model Makro, atau None jika gagal
@@ -147,6 +148,33 @@ async def collect_bi_rate() -> dict[str, Any] | None:
     result = await _scrape_bi_rate_from_moneter()
     if result:
         return result
+
+    # Strategi 3: Fallback ke cache database
+    try:
+        logger.info("🏦 Scraping BI Rate gagal. Mencoba mengambil data historis terakhir dari database...")
+        from backend.db.postgres import async_session, Makro
+        from sqlalchemy import select
+        
+        async with async_session() as session:
+            stmt = (
+                select(Makro)
+                .where(Makro.indikator == "bi_rate")
+                .order_by(Makro.tanggal.desc())
+                .limit(1)
+            )
+            db_res = await session.execute(stmt)
+            latest_bi = db_res.scalar_one_or_none()
+            if latest_bi:
+                logger.info(f"🏦 Menggunakan BI Rate terakhir dari database: {latest_bi.nilai}% (tanggal: {latest_bi.tanggal})")
+                return {
+                    "tanggal": date.today(),
+                    "indikator": "bi_rate",
+                    "nilai": latest_bi.nilai,
+                    "satuan": latest_bi.satuan,
+                    "sumber": "database_cache",
+                }
+    except Exception as e:
+        logger.error(f"❌ Gagal memuat cache BI Rate dari DB: {e}")
 
     logger.warning(
         "⚠️  Gagal mengambil BI Rate dari semua sumber. "

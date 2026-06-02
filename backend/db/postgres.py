@@ -24,6 +24,7 @@ import enum
 from datetime import date, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -226,7 +227,7 @@ class Fundamental(Base):
         comment="Harga penutupan terakhir (IDR)",
     )
     volume: Mapped[int | None] = mapped_column(
-        Integer,
+        BigInteger,
         nullable=True,
         comment="Volume transaksi harian (lot)",
     )

@@ -26,14 +26,66 @@ enum NetworkError: Error, LocalizedError {
 class NetworkManager {
     static let shared = NetworkManager()
     
-    // Ganti IP di bawah ini dengan IP aktual Mac Anda
-    private let baseURL = "http://10.67.49.69:8080"
+    // URL yang sudah terverifikasi sukses terhubung
+    private var verifiedBaseURL: String? = nil
     
     private init() {}
     
+    /// Mendapatkan Base URL secara dinamis dengan mencoba kandidat IP secara paralel.
+    /// Jika satu IP tidak terhubung, akan langsung otomatis dialihkan ke IP lainnya yang aktif.
+    private func getBaseURL() async -> String {
+        if let verified = verifiedBaseURL {
+            return verified
+        }
+        
+        let candidates = [
+            "http://192.168.100.21:8080", // IP Mac Aktif
+            "http://10.67.49.69:8080",    // IP Mac Alternatif (Kantor/Lama)
+            "http://localhost:8080"       // Simulator
+        ]
+        
+        let workingURL = await withTaskGroup(of: String?.self) { group -> String in
+            for candidate in candidates {
+                group.addTask {
+                    // Menggunakan endpoint /api/status untuk verifikasi koneksi backend
+                    guard let url = URL(string: "\(candidate)/api/status") else { return nil }
+                    var request = URLRequest(url: url)
+                    request.timeoutInterval = 1.5 // Timeout singkat agar peralihan cepat
+                    request.httpMethod = "GET"
+                    
+                    do {
+                        let (_, response) = try await URLSession.shared.data(for: request)
+                        if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
+                            return candidate
+                        }
+                    } catch {
+                        // Gagal terhubung ke kandidat ini
+                    }
+                    return nil
+                }
+            }
+            
+            // Ambil kandidat pertama yang merespons sukses
+            for await result in group {
+                if let url = result {
+                    group.cancelAll() // Batalkan pengecekan kandidat lain
+                    return url
+                }
+            }
+            
+            // Fallback default jika semuanya tidak merespons
+            return candidates[0]
+        }
+        
+        self.verifiedBaseURL = workingURL
+        print("🔌 NetworkManager: Menggunakan backend \(workingURL)")
+        return workingURL
+    }
+    
     /// Mengambil daftar semua kode emiten saham
     func fetchSahamList() async throws -> [Saham] {
-        guard let url = URL(string: "\(baseURL)/saham/list") else {
+        let base = await getBaseURL()
+        guard let url = URL(string: "\(base)/saham/list") else {
             throw NetworkError.invalidURL
         }
         
@@ -52,7 +104,8 @@ class NetworkManager {
     
     /// Mengambil top 10 rekomendasi saham mingguan
     func fetchRekomendasiMingguan() async throws -> [Rekomendasi] {
-        guard let url = URL(string: "\(baseURL)/rekomendasi/mingguan") else {
+        let base = await getBaseURL()
+        guard let url = URL(string: "\(base)/rekomendasi/mingguan") else {
             throw NetworkError.invalidURL
         }
         
@@ -72,7 +125,8 @@ class NetworkManager {
     
     /// Mengambil detail rekomendasi untuk satu saham
     func fetchRekomendasiDetail(kode: String) async throws -> RekomendasiDetail {
-        guard let url = URL(string: "\(baseURL)/rekomendasi/saham/\(kode)") else {
+        let base = await getBaseURL()
+        guard let url = URL(string: "\(base)/rekomendasi/saham/\(kode)") else {
             throw NetworkError.invalidURL
         }
         
@@ -91,7 +145,8 @@ class NetworkManager {
     
     /// Mengambil snapshot indikator makroekonomi terkini
     func fetchMakroTerbaru() async throws -> Makro {
-        guard let url = URL(string: "\(baseURL)/makro/terbaru") else {
+        let base = await getBaseURL()
+        guard let url = URL(string: "\(base)/makro/terbaru") else {
             throw NetworkError.invalidURL
         }
         
@@ -122,7 +177,8 @@ class NetworkManager {
     
     /// Mengambil riwayat alert terbaru untuk notifikasi
     func fetchAlerts() async throws -> [AlertModel] {
-        guard let url = URL(string: "\(baseURL)/alerts") else {
+        let base = await getBaseURL()
+        guard let url = URL(string: "\(base)/alerts") else {
             throw NetworkError.invalidURL
         }
         
@@ -141,13 +197,15 @@ class NetworkManager {
     
     /// Mengirim pertanyaan ke RAG Chatbot dan menerima streaming jawaban
     func sendChatMessageStream(pertanyaan: String, riwayat: [ChatHistoryItem]) async throws -> AsyncThrowingStream<String, Error> {
-        guard let url = URL(string: "\(baseURL)/chat") else {
+        let base = await getBaseURL()
+        guard let url = URL(string: "\(base)/chat") else {
             throw NetworkError.invalidURL
         }
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 240.0 // Meningkatkan timeout ke 4 menit untuk LLM lokal
         
         let payload = ChatPayload(pertanyaan: pertanyaan, riwayat: riwayat)
         request.httpBody = try JSONEncoder().encode(payload)

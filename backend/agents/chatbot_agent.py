@@ -375,6 +375,7 @@ async def ambil_konteks(state: ChatState) -> dict[str, Any]:
     1. ChromaDB: dokumen relevan (berita, laporan, makro)
     2. PostgreSQL: data fundamental terbaru
     3. PostgreSQL: skor scoring mingguan terbaru
+    4. PostgreSQL: data top 10 rekomendasi mingguan terbaru (jika ditanyakan)
 
     Jika ini retry (perlu_dokumen_tambahan=True), top_k diperbesar.
 
@@ -432,10 +433,62 @@ async def ambil_konteks(state: ChatState) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"   ❌ Gagal retrieval ChromaDB: {type(e).__name__}: {e}")
 
-    # ─── Langkah 2: Data fundamental dari PostgreSQL ───
-    if saham_list:
-        try:
-            async with async_session() as session:
+    # ─── Langkah 2: Data dari PostgreSQL ───
+    try:
+        async with async_session() as session:
+            # 2a. Deteksi apakah user menanyakan rekomendasi / top 10 secara umum
+            pertanyaan_lower = pertanyaan.lower()
+            minta_rekomendasi = any(
+                k in pertanyaan_lower for k in [
+                    "rekomendasi", "top 10", "saham terbaik", "pilihan saham",
+                    "rekomendasi minggu", "scoring", "saham bagus"
+                ]
+            )
+            if minta_rekomendasi:
+                # Cari tanggal scoring terakhir di DB
+                stmt_date = (
+                    select(ScoringMingguan.tanggal_scoring)
+                    .order_by(ScoringMingguan.tanggal_scoring.desc())
+                    .limit(1)
+                )
+                res_date = await session.execute(stmt_date)
+                tanggal_terakhir = res_date.scalar_one_or_none()
+
+                if tanggal_terakhir:
+                    # Ambil TOP 10 saham teratas di tanggal scoring tersebut
+                    stmt_top10 = (
+                        select(ScoringMingguan, Saham.nama_perusahaan, Saham.sektor)
+                        .join(Saham, ScoringMingguan.kode_saham == Saham.kode)
+                        .where(ScoringMingguan.tanggal_scoring == tanggal_terakhir)
+                        .order_by(ScoringMingguan.skor_total.desc())
+                        .limit(settings.top_k_saham)
+                    )
+                    res_top10 = await session.execute(stmt_top10)
+                    rows = res_top10.all()
+
+                    daftar_rekomendasi = []
+                    for idx, row in enumerate(rows, 1):
+                        scoring_obj, nama_pt, sektor = row
+                        daftar_rekomendasi.append({
+                            "rank": idx,
+                            "kode_saham": scoring_obj.kode_saham,
+                            "nama_perusahaan": nama_pt,
+                            "sektor": sektor,
+                            "skor_total": scoring_obj.skor_total,
+                            "rekomendasi": scoring_obj.rekomendasi.value,
+                            "confidence": scoring_obj.confidence,
+                            "alasan": scoring_obj.alasan or "",
+                        })
+
+                    if daftar_rekomendasi:
+                        data_angka["TOP_10_REKOMENDASI"] = {
+                            "judul": f"TOP 10 REKOMENDASI SAHAM MINGGU INI ({tanggal_terakhir.isoformat()})",
+                            "daftar": daftar_rekomendasi
+                        }
+                        logger.info(f"   📈 Menambahkan TOP 10 Rekomendasi ({tanggal_terakhir}) ke konteks chatbot.")
+
+            # 2b. Data fundamental & scoring spesifik jika ada saham_list
+            if saham_list:
                 for kode in saham_list:
                     saham_data: dict[str, Any] = {"kode": kode}
 
@@ -500,11 +553,11 @@ async def ambil_konteks(state: ChatState) -> dict[str, Any]:
                         f"{'ada' if scoring else 'tidak ada'} scoring"
                     )
 
-        except Exception as e:
-            logger.error(f"   ❌ Gagal baca PostgreSQL: {type(e).__name__}: {e}")
+    except Exception as e:
+        logger.error(f"   ❌ Gagal baca PostgreSQL: {type(e).__name__}: {e}")
 
     logger.info(
-        f"   📊 Data angka untuk {len(data_angka)} saham"
+        f"   📊 Data angka untuk {len(data_angka)} saham/entitas"
     )
 
     return {
@@ -556,6 +609,18 @@ async def generate_jawaban(state: ChatState) -> dict[str, Any]:
     if data_angka:
         konteks_angka = "DATA SAHAM:\n"
         for kode, data in data_angka.items():
+            if kode == "TOP_10_REKOMENDASI":
+                konteks_angka += f"\n=== {data['judul']} ===\n"
+                for item in data["daftar"]:
+                    konteks_angka += (
+                        f"Rank #{item['rank']}: {item['kode_saham']} ({item['nama_perusahaan']}) | "
+                        f"Sektor: {item['sektor']} | Skor: {item['skor_total']:.1f}/100 -> "
+                        f"{item['rekomendasi']} (Conf: {item['confidence']:.2f})\n"
+                        f"Analisis: {item['alasan']}\n"
+                    )
+                konteks_angka += "=====================================\n"
+                continue
+
             konteks_angka += f"\n--- {kode}"
             nama = data.get("nama", "")
             if nama:
@@ -599,6 +664,11 @@ async def generate_jawaban(state: ChatState) -> dict[str, Any]:
             konteks_riwayat += f"{role}: {msg['content'][:200]}\n"
         konteks_riwayat += "\n"
 
+    # ─── Penyesuaian batas kata ───
+    # Jika ada data top 10 rekomendasi, naikkan batas kata ke 450 agar muat daftarnya
+    minta_top10 = "TOP_10_REKOMENDASI" in data_angka
+    word_limit = 450 if minta_top10 else 200
+
     # ─── Instruksi khusus berdasarkan jenis pertanyaan ───
     instruksi_jenis = {
         "spesifik": (
@@ -612,7 +682,9 @@ async def generate_jawaban(state: ChatState) -> dict[str, Any]:
         ),
         "umum": (
             "Jawab pertanyaan tentang pasar/sektor/ekonomi secara umum. "
-            "Berikan gambaran kondisi terkini berdasarkan data yang tersedia."
+            "Jika data rekomendasi/top 10 tersedia di DATA SAHAM, sebutkan daftarnya "
+            "secara berurutan (dari rank #1 sampai #10) beserta skor total dan rekomendasinya (BUY/HOLD/SELL) "
+            "secara padat dan informatif."
         ),
     }
 
@@ -623,15 +695,15 @@ async def generate_jawaban(state: ChatState) -> dict[str, Any]:
 
 ATURAN MENJAWAB:
 1. Jawab dalam Bahasa Indonesia yang natural dan mudah dipahami
-2. Maksimal 200 kata, padat dan informatif
-3. Gunakan data angka jika tersedia, jangan mengarang data
+2. Maksimal {word_limit} kata, padat dan informatif
+3. Gunakan data angka jika tersedia, jangan pernah mengarang data saham/angka
 4. Jika data tidak tersedia, sampaikan dengan jujur
 5. Sertakan disclaimer singkat bahwa ini bukan saran investasi profesional
 6. {instruksi}
 7. Akhiri jawaban dengan baris baru dan tulis confidence score-mu (0.0-1.0) dalam format: [CONFIDENCE: X.X]
 
 PENTING:
-- Jangan gunakan format markdown kompleks, tulis dalam paragraf natural
+- Jangan gunakan format markdown kompleks, tulis dalam paragraf/list yang natural dan rapi
 - Jika ada data scoring, sebutkan skor dan rekomendasinya
 - Jawab langsung pertanyaan user, jangan bertele-tele
 
@@ -733,9 +805,25 @@ def _generate_jawaban_fallback(
     """
     parts = []
 
-    if saham_list and data_angka:
-        for kode in saham_list:
+    # 1. Handle TOP_10_REKOMENDASI jika ada
+    if "TOP_10_REKOMENDASI" in data_angka:
+        data = data_angka["TOP_10_REKOMENDASI"]
+        parts.append(f"=== {data['judul']} ===")
+        for item in data["daftar"]:
+            parts.append(
+                f"{item['rank']}. {item['kode_saham']} ({item['nama_perusahaan']}) "
+                f"| Skor: {item['skor_total']:.1f}/100 -> {item['rekomendasi']}"
+            )
+        parts.append("")
+
+    # 2. Handle saham spesifik jika ada
+    # Saring agar tidak memproses TOP_10_REKOMENDASI sebagai saham biasa
+    saham_biasa = [s for s in saham_list if s != "TOP_10_REKOMENDASI"]
+    if saham_biasa and data_angka:
+        for kode in saham_biasa:
             data = data_angka.get(kode, {})
+            if not data or "nama" not in data:
+                continue
             nama = data.get("nama", kode)
             fund = data.get("fundamental", {})
             scoring = data.get("scoring", {})
@@ -760,13 +848,13 @@ def _generate_jawaban_fallback(
                 )
             parts.append("")
 
-    elif dokumen:
+    elif not parts and dokumen:
         parts.append("Berdasarkan informasi yang tersedia:")
         for doc in dokumen[:3]:
             parts.append(f"- {doc.get('teks', '')[:150]}")
         parts.append("")
 
-    else:
+    elif not parts:
         parts.append(
             "Maaf, saya belum memiliki cukup data untuk menjawab "
             "pertanyaan ini secara akurat. Coba tanyakan dengan "

@@ -153,8 +153,12 @@ async def _fetch_rss_feed(url: str) -> list[dict[str, Any]]:
             response = await client.get(url)
             response.raise_for_status()
 
+        # Bersihkan karakter ampersand yang tidak valid (&) agar XML feedparser tidak error
+        import re
+        cleaned_text = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#[0-9]+;)', '&amp;', response.text)
+
         # feedparser bisa parse string XML langsung
-        feed = await asyncio.to_thread(feedparser.parse, response.text)
+        feed = await asyncio.to_thread(feedparser.parse, cleaned_text)
 
         if feed.bozo and not feed.entries:
             # bozo = feed tidak valid, tapi kadang masih punya entries

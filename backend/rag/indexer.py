@@ -226,6 +226,7 @@ def _generate_doc_id(teks: str, metadata: dict[str, Any]) -> str:
         f"{metadata.get('kode_saham', '')}"
         f"|{metadata.get('sumber', '')}"
         f"|{metadata.get('tanggal', '')}"
+        f"|{metadata.get('url', '')}"  # Tambahkan URL agar unik per artikel
         f"|{teks[:200]}"  # 200 char pertama dari teks
     )
     return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:16]
@@ -507,25 +508,33 @@ async def index_batch_berita(
     try:
         collection = await asyncio.to_thread(get_collection, COLLECTION_BERITA)
 
-        # Siapkan data untuk upsert
-        ids: list[str] = []
+        # Siapkan data untuk upsert (dan hilangkan ID duplikat dalam satu batch)
+        unique_ids: list[str] = []
+        unique_chunks: list[str] = []
+        unique_metas: list[dict] = []
+        unique_embeddings: list[list[float]] = []
+
+        seen_ids = set()
         for i, (chunk, meta) in enumerate(zip(all_chunks, all_chunk_metas)):
             doc_id = _generate_doc_id(chunk, meta)
-            ids.append(doc_id)
-
-        serialized_metas = [_serialize_metadata(m) for m in all_chunk_metas]
+            if doc_id not in seen_ids:
+                seen_ids.add(doc_id)
+                unique_ids.append(doc_id)
+                unique_chunks.append(chunk)
+                unique_metas.append(_serialize_metadata(meta))
+                unique_embeddings.append(all_embeddings[i])
 
         # Upsert dalam batch ke ChromaDB
         chroma_batch_size = 100  # ChromaDB optimal batch size
-        for batch_start in range(0, len(ids), chroma_batch_size):
-            batch_end = min(batch_start + chroma_batch_size, len(ids))
+        for batch_start in range(0, len(unique_ids), chroma_batch_size):
+            batch_end = min(batch_start + chroma_batch_size, len(unique_ids))
 
             await asyncio.to_thread(
                 collection.upsert,
-                ids=ids[batch_start:batch_end],
-                documents=all_chunks[batch_start:batch_end],
-                metadatas=serialized_metas[batch_start:batch_end],
-                embeddings=all_embeddings[batch_start:batch_end],
+                ids=unique_ids[batch_start:batch_end],
+                documents=unique_chunks[batch_start:batch_end],
+                metadatas=unique_metas[batch_start:batch_end],
+                embeddings=unique_embeddings[batch_start:batch_end],
             )
 
         stats["berhasil"] = stats["total"] - stats["gagal"]
