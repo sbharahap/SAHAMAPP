@@ -19,6 +19,7 @@ from backend.workers import (
     scrape_makro_job,
     scrape_news_job,
     run_scoring_job,
+    update_last_prices_job,
 )
 from backend.agents.alert_agent import jalankan_monitoring
 
@@ -96,6 +97,19 @@ async def job_daily_data_update() -> None:
         logger.error(f"❌ [SCHEDULER] Gagal memperbarui data makroekonomi: {e}")
 
 
+async def job_last_price_update() -> None:
+    """
+    Job 4: Memperbarui hanya last price dan volume emiten di watchlist
+    dari Yahoo Finance secara cepat. Dijalankan setiap 30 menit.
+    """
+    logger.info("⏱️ [SCHEDULER] Menjalankan Job 4: Update Last Price & Volume (30 Menit)...")
+    try:
+        await update_last_prices_job()
+        logger.info("✅ [SCHEDULER] Job 4: Update Last Price selesai.")
+    except Exception as e:
+        logger.error(f"❌ [SCHEDULER] Job 4: Gagal menjalankan update last price: {e}")
+
+
 # ============================================================
 # Scheduler Lifecycle Control
 # ============================================================
@@ -134,6 +148,15 @@ def setup_scheduler() -> None:
         CronTrigger(hour=7, minute=0),
         id="daily_data_update_job",
         name="Daily Fundamental & Macro Data Update",
+        replace_existing=True,
+    )
+
+    # Job 4: Setiap 30 menit untuk fast price updates
+    scheduler.add_job(
+        job_last_price_update,
+        IntervalTrigger(minutes=30),
+        id="last_price_update_job",
+        name="Fast Stock Last Price Update (Every 30m)",
         replace_existing=True,
     )
 

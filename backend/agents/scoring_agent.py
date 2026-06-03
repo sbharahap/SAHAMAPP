@@ -489,10 +489,10 @@ def _skor_makro(kondisi_pasar: dict[str, Any], sektor: str) -> float:
         skor += 10  # Inflasi ideal
     elif inflasi < 2.0:
         skor += 5   # Deflasi ringan
+    elif inflasi > 7.0:
+        skor -= 20  # Inflasi sangat tinggi
     elif inflasi > 5.0:
         skor -= 10  # Inflasi tinggi
-    elif inflasi > 7.0:
-        skor -= 20
 
     # Kurs — Rupiah melemah tajam = negatif
     kurs_data = makro.get("kurs_usd_idr", {})

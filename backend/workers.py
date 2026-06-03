@@ -23,7 +23,8 @@ from backend.db.postgres import (
     ScoringMingguan,
 )
 from backend.data.collectors.berita_collector import collect_berita_batch, collect_berita_pasar
-from backend.data.collectors.fundamental_collector import collect_fundamental_batch
+from backend.data.collectors.fundamental_collector import collect_fundamental_batch, collect_last_prices
+from backend.data.collectors.xbrl_collector import collect_xbrl_fundamental
 from backend.data.collectors.makro_collector import collect_makro
 from backend.data.preprocessors.data_cleaner import clean_berita, normalize_fundamental, hitung_sentimen_sederhana
 from backend.rag.indexer import index_batch_berita
@@ -115,9 +116,10 @@ async def scrape_news_job() -> None:
                 try:
                     # Clean data
                     cleaned = clean_berita(item)
-                    # Hitung sentimen
-                    cleaned["skor_sentimen"] = hitung_sentimen_sederhana(cleaned["judul"])
-
+                    # Hitung sentimen menggunakan isi_berita jika ada, fallback ke judul
+                    sentimen_text = cleaned.get("isi_berita") or cleaned["judul"]
+                    cleaned["skor_sentimen"] = hitung_sentimen_sederhana(sentimen_text)
+ 
                     # Gunakan PostgreSQL insert ON CONFLICT DO NOTHING
                     stmt = pg_insert(Berita).values(
                         kode_saham=cleaned["kode_saham"],
@@ -126,6 +128,7 @@ async def scrape_news_job() -> None:
                         sumber=cleaned["sumber"],
                         tanggal_publish=cleaned["tanggal_publish"],
                         skor_sentimen=cleaned["skor_sentimen"],
+                        isi_berita=cleaned.get("isi_berita"),
                         sudah_diembedding=False
                     )
                     stmt = stmt.on_conflict_do_nothing(index_elements=["url"])
@@ -135,15 +138,15 @@ async def scrape_news_job() -> None:
                 except Exception as e:
                     logger.error(f"❌ Gagal memproses single berita '{item.get('judul', '')[:30]}': {e}")
             await session.commit()
-
+ 
         logger.info(f"💾 {saved_count} berita baru berhasil disimpan ke PostgreSQL.")
-
+ 
         # 5. Ambil berita yang belum di-embed dari PostgreSQL, kirim ke ChromaDB
         async with async_session() as session:
             stmt = select(Berita).where(Berita.sudah_diembedding == False)
             result = await session.execute(stmt)
             unembedded_news = result.scalars().all()
-
+ 
             if unembedded_news:
                 logger.info(f"🧠 Melakukan embedding untuk {len(unembedded_news)} berita baru ke ChromaDB...")
                 
@@ -157,8 +160,9 @@ async def scrape_news_job() -> None:
                         "url": n.url,
                         "sumber": n.sumber,
                         "tanggal_publish": n.tanggal_publish,
+                        "isi_berita": n.isi_berita,
                     })
-
+ 
                 # Jalankan indexing
                 stats = await index_batch_berita(berita_dict_list)
                 
@@ -204,6 +208,26 @@ async def scrape_fundamental_job() -> None:
         async with async_session() as session:
             for item in raw_fund:
                 try:
+                    kode = item.get("kode_saham")
+                    if kode:
+                        logger.info(f"🔍 Mengambil data XBRL IDX untuk {kode}...")
+                        xbrl_data = await collect_xbrl_fundamental(kode)
+                        if xbrl_data:
+                            item["roe"] = xbrl_data.get("roe")
+                            item["eps"] = xbrl_data.get("eps")
+                            item["der"] = xbrl_data.get("der")
+                            
+                            # Rekalkulasi PE & PBV menggunakan harga penutupan terupdate
+                            harga = item.get("harga_terakhir")
+                            if harga is not None:
+                                if item["eps"] and item["eps"] != 0:
+                                    item["pe_ratio"] = round(harga / item["eps"], 2)
+                                    if item["roe"] is not None:
+                                        item["pbv"] = round(item["pe_ratio"] * (item["roe"] / 100.0), 2)
+                        
+                        # Delay kecil agar sopan ke IDX API
+                        await asyncio.sleep(1.0)
+
                     cleaned = normalize_fundamental(item)
 
                     # Simpan/Upsert ke fundamental harian
@@ -314,3 +338,56 @@ async def run_scoring_job() -> None:
     except Exception as e:
         logger.error(f"❌ Gagal menjalankan scoring mingguan: {e}")
     logger.info("⏰ Background job: Scoring selesai.")
+
+
+async def update_last_prices_job() -> None:
+    """
+    Background job untuk memperbarui hanya harga_terakhir dan volume saham.
+    Dijalankan setiap 30 menit sekali.
+    """
+    logger.info("⏰ Memulai background job: Update Last Price (30 Menit Sekali)...")
+    try:
+        # 1. Ambil daftar semua kode saham
+        async with async_session() as session:
+            result = await session.execute(select(Saham.kode))
+            kode_saham_list = [row for row in result.scalars().all()]
+
+        if not kode_saham_list:
+            logger.warning("⚠️ Tidak ada kode saham terdaftar di DB.")
+            return
+
+        # 2. Ambil update harga tercepat dari Yahoo Finance
+        logger.info(f"📊 Mengambil update harga cepat untuk {len(kode_saham_list)} saham...")
+        raw_prices = await collect_last_prices(kode_saham_list)
+
+        # 3. Simpan/Update ke PostgreSQL
+        updated_count = 0
+        async with async_session() as session:
+            for data in raw_prices:
+                try:
+                    if data["harga_terakhir"] is not None:
+                        # Update / Upsert ke fundamental harian (uq_fundamental_kode_tanggal)
+                        # Kita gunakan ON CONFLICT DO UPDATE untuk update harga_terakhir & volume saja
+                        stmt = pg_insert(Fundamental).values(
+                            kode_saham=data["kode_saham"],
+                            tanggal=data["tanggal"],
+                            harga_terakhir=data["harga_terakhir"],
+                            volume=data["volume"]
+                        )
+                        stmt = stmt.on_conflict_do_update(
+                            constraint="uq_fundamental_kode_tanggal",
+                            set_={
+                                "harga_terakhir": data["harga_terakhir"],
+                                "volume": data["volume"]
+                            }
+                        )
+                        await session.execute(stmt)
+                        updated_count += 1
+                except Exception as e:
+                    logger.error(f"❌ Gagal memproses update harga untuk {data.get('kode_saham', '')}: {e}")
+            await session.commit()
+            
+        logger.info(f"💾 {updated_count} harga saham berhasil diperbarui di PostgreSQL.")
+    except Exception as e:
+        logger.error(f"❌ Gagal menjalankan job update last price: {e}")
+    logger.info("⏰ Background job: Update Last Price selesai.")

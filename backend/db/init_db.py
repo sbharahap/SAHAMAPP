@@ -70,6 +70,10 @@ async def init_database() -> None:
 
             # CREATE TABLE IF NOT EXISTS — aman dijalankan berulang kali
             await conn.run_sync(Base.metadata.create_all)
+            
+            # Tambahkan kolom isi_berita jika belum ada
+            from sqlalchemy import text
+            await conn.execute(text("ALTER TABLE berita ADD COLUMN IF NOT EXISTS isi_berita TEXT;"))
 
         logger.info("✅ Semua tabel berhasil dibuat!")
         logger.info("")

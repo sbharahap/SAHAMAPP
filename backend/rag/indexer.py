@@ -431,8 +431,11 @@ async def index_batch_berita(
 
     for berita in berita_list:
         try:
-            # Teks untuk indexing: gabungan judul (berita dari RSS biasanya hanya judul)
-            teks = berita.get("judul", "").strip()
+            # Teks untuk indexing: gunakan isi_berita jika ada, fallback ke judul
+            teks = berita.get("isi_berita", "").strip()
+            if not teks:
+                teks = berita.get("judul", "").strip()
+                
             if not teks:
                 stats["gagal"] += 1
                 continue

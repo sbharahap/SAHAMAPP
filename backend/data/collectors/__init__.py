@@ -8,11 +8,12 @@ Kumpulan scraper untuk mengambil data dari berbagai sumber:
 """
 
 from backend.data.collectors.berita_collector import collect_berita
-from backend.data.collectors.fundamental_collector import collect_fundamental
+from backend.data.collectors.fundamental_collector import collect_fundamental, collect_last_prices
 from backend.data.collectors.makro_collector import collect_makro
 
 __all__ = [
     "collect_fundamental",
+    "collect_last_prices",
     "collect_berita",
     "collect_makro",
 ]

@@ -430,6 +430,13 @@ class Berita(Base):
         comment="Skor sentimen berita (-1.0 s/d 1.0), NULL jika belum dianalisis",
     )
 
+    # Isi berita lengkap
+    isi_berita: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Isi berita lengkap (teks)",
+    )
+
     # Status embedding: apakah teks berita sudah di-embed ke ChromaDB
     sudah_diembedding: Mapped[bool] = mapped_column(
         Boolean,

@@ -32,9 +32,11 @@ Catatan:
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+import re
 from typing import Any
 from urllib.parse import quote_plus
 
+from bs4 import BeautifulSoup
 import feedparser
 import httpx
 from loguru import logger
@@ -55,6 +57,106 @@ _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Apple Silicon Mac OS X) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+
+async def fetch_article_content(url: str) -> str:
+    """
+    Mengambil isi berita lengkap secara async dari URL sumber, membersihkan HTML tag,
+    dan mengekstrak teks berita utama.
+    """
+    try:
+        async with httpx.AsyncClient(
+            timeout=15.0,
+            follow_redirects=True,
+            headers={"User-Agent": _USER_AGENT},
+        ) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Bersihkan elemen yang tidak penting
+        for element in soup(["script", "style", "nav", "header", "footer", "form", "aside", "iframe", "noscript"]):
+            element.decompose()
+            
+        # Cari div konten berita berdasarkan class/tag umum portal berita Indonesia
+        content_div = None
+        for selector in [
+            "article", 
+            ".read__content", 
+            ".detail__body-text", 
+            ".post-content", 
+            ".entry-content", 
+            ".post-body",
+            ".article-content",
+            ".detail-text",
+            ".news-content"
+        ]:
+            content_div = soup.select_one(selector)
+            if content_div:
+                break
+                
+        if content_div:
+            paragraphs = content_div.find_all("p")
+        else:
+            paragraphs = soup.find_all("p")
+            
+        text_parts = []
+        for p in paragraphs:
+            text = p.get_text().strip()
+            # Filter baris/paragraf boilerplate umum
+            if len(text) > 30 and not any(skip in text.lower() for skip in [
+                "baca juga:", "download aplikasi", "simak breaking news", "follow instagram", "klik di sini",
+                "halaman selanjutnya", "selengkapnya di"
+            ]):
+                text_parts.append(text)
+                
+        content = "\n\n".join(text_parts)
+        return content[:10000].strip()  # Batasi max 10.000 karakter
+    except Exception as e:
+        logger.warning(f"⚠️ Gagal mengambil isi berita dari {url}: {e}")
+        return ""
+
+def is_news_relevant(title: str, content: str = "") -> bool:
+    """
+    Reranking/filtering berita untuk menyaring berita tidak relevan (promo, diskon, dll).
+    Mengembalikan True jika berita dinilai relevan dengan investasi/emiten/pasar modal.
+    """
+    title_lower = title.lower()
+    content_lower = content.lower()
+    
+    # Kata kunci penanda berita spam, gaya hidup, atau non-investasi (negatif/noise filter)
+    noise_keywords = [
+        "promo", "diskon", "voucher", "katalog belanja", "undian", 
+        "mudik", "lebaran", "ramadan", "ramadhan", "giveaway", 
+        "csr", "donasi", "bantuan sosial", "bansos", "beasiswa",
+        "lowongan kerja", "loker", "magang", "rekrutmen", "karir",
+        "olahraga", "sepak bola", "klasemen", "skor liga", "resep", 
+        "kuliner", "makanan", "wisata", "liburan", "traveling", 
+        "konser", "festival", "film", "sinopsis", "drama", "artis", 
+        "gosip", "bencana alam", "gempa", "kecelakaan maut", "kebakaran",
+        "tawuran", "kriminal", "pembunuhan", "perampokan", "mudik gratis",
+        "tips diet", "kecantikan", "makeup", "fashion", "zodiak"
+    ]
+    
+    for kw in noise_keywords:
+        if kw in title_lower:
+            return False
+            
+    # Kata kunci penanda berita finansial/investasi (positif filter)
+    finance_keywords = [
+        "saham", "emiten", "laba", "rugi", "rupiah", "dolar", "investasi", 
+        "ihsg", "bursa", "idx", "bei", "ipo", "rups", "dividen", "obligasi", 
+        "reksadana", "sukuk", "gdp", "bi rate", "inflasi", "suku bunga", 
+        "fomc", "fed", "keuangan", "akuisisi", "merger", "kinerja", 
+        "kuartal", "q1", "q2", "q3", "q4", "fy", "semester", "revenue",
+        "pendapatan", "omzet", "ekspansi", "utang", "obligasi", "korporasi",
+        "harga saham", "rebound", "bullish", "bearish", "sideways", "kapitalisasi"
+    ]
+    
+    has_finance = any(kw in title_lower for kw in finance_keywords) or \
+                  (content_lower and any(kw in content_lower for kw in finance_keywords))
+                  
+    return has_finance
 
 
 def _parse_published_date(entry: dict[str, Any]) -> datetime | None:
@@ -349,12 +451,34 @@ async def collect_berita(
     # Deduplikasi
     unique_berita = _deduplikasi_berita(all_berita)
 
+    # Batasi ke top 8 berita terbaru untuk menghindari rate limit saat mengambil isi penuh
+    unique_berita = unique_berita[:8]
+
+    relevant_berita: list[dict[str, Any]] = []
+    for berita in unique_berita:
+        title = berita["judul"]
+        if is_news_relevant(title):
+            url = berita["url"]
+            logger.info(f"📰 Mengambil isi berita: {title[:50]}...")
+            content = await fetch_article_content(url)
+            
+            # Verifikasi lagi relevansi dengan isi berita
+            if is_news_relevant(title, content):
+                berita["isi_berita"] = content
+                relevant_berita.append(berita)
+            else:
+                logger.info(f"🗑️ Membuang berita tidak relevan setelah cek isi: {title[:50]}")
+            
+            # Delay kecil agar sopan ke server news
+            await asyncio.sleep(1.0)
+        else:
+            logger.info(f"🗑️ Membuang berita tidak relevan berdasarkan judul: {title[:50]}")
+
     logger.info(
-        f"📰 {kode}: ditemukan {len(unique_berita)} berita unik "
-        f"dari {len(all_berita)} total"
+        f"📰 {kode}: ditemukan {len(relevant_berita)} berita relevan dari {len(unique_berita)} total unik"
     )
 
-    return unique_berita
+    return relevant_berita
 
 
 async def collect_berita_batch(
@@ -450,8 +574,31 @@ async def collect_berita_pasar(
     # Deduplikasi
     unique_berita = _deduplikasi_berita(all_berita)
 
+    # Batasi ke top 8 berita terbaru
+    unique_berita = unique_berita[:8]
+
+    relevant_berita: list[dict[str, Any]] = []
+    for berita in unique_berita:
+        title = berita["judul"]
+        if is_news_relevant(title):
+            url = berita["url"]
+            logger.info(f"🌐 Mengambil isi berita pasar: {title[:50]}...")
+            content = await fetch_article_content(url)
+            
+            # Verifikasi lagi relevansi dengan isi berita
+            if is_news_relevant(title, content):
+                berita["isi_berita"] = content
+                relevant_berita.append(berita)
+            else:
+                logger.info(f"🗑️ Membuang berita pasar tidak relevan setelah cek isi: {title[:50]}")
+            
+            # Delay kecil agar sopan ke server news
+            await asyncio.sleep(1.0)
+        else:
+            logger.info(f"🗑️ Membuang berita pasar tidak relevan berdasarkan judul: {title[:50]}")
+
     logger.info(
-        f"🌐 Berita pasar: {len(unique_berita)} berita unik ditemukan"
+        f"🌐 Berita pasar: ditemukan {len(relevant_berita)} berita relevan dari {len(unique_berita)} total unik"
     )
 
-    return unique_berita
+    return relevant_berita

@@ -310,3 +310,40 @@ async def collect_fundamental_batch(
     )
 
     return all_results
+
+
+def _fetch_single_stock_last_price(kode_saham: str) -> dict[str, Any] | None:
+    """
+    Ambil hanya harga terupdate dan volume transaksi dari yfinance (sangat cepat).
+    """
+    ticker_symbol = f"{kode_saham}{settings.yfinance_market_suffix}"
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        fast = ticker.fast_info
+        harga = float(fast.get("lastPrice", 0)) or None
+        volume = int(fast.get("lastVolume", 0)) or None
+        return {
+            "kode_saham": kode_saham,
+            "harga_terakhir": harga,
+            "volume": volume,
+            "tanggal": date.today()
+        }
+    except Exception as e:
+        logger.error(f"❌ Gagal ambil last price untuk {ticker_symbol}: {e}")
+        return None
+
+
+async def collect_last_prices(kode_saham_list: list[str]) -> list[dict[str, Any]]:
+    """
+    Mengambil data harga penutupan terakhir dan volume saja (sangat cepat)
+    untuk seluruh watchlist saham.
+    """
+    logger.info(f"📊 Mengambil update harga cepat untuk {len(kode_saham_list)} saham...")
+    results = []
+    for kode in kode_saham_list:
+        data = await asyncio.to_thread(_fetch_single_stock_last_price, kode.strip().upper())
+        if data:
+            results.append(data)
+        # Delay minimal agar tidak diblokir oleh yfinance
+        await asyncio.sleep(0.2)
+    return results

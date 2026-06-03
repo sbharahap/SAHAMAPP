@@ -296,8 +296,17 @@ def clean_berita(raw: dict[str, Any]) -> dict[str, Any]:
 
     result["judul"] = judul
 
-    # Deteksi bahasa
-    result["bahasa"] = _deteksi_bahasa(judul)
+    # Bersihkan isi berita jika ada
+    isi_berita = result.get("isi_berita")
+    if isi_berita:
+        isi_berita = _hapus_html_tags(isi_berita)
+        isi_berita = _normalisasi_whitespace(isi_berita)
+        result["isi_berita"] = isi_berita
+    else:
+        result["isi_berita"] = None
+
+    # Deteksi bahasa (gunakan isi_berita jika ada agar lebih akurat)
+    result["bahasa"] = _deteksi_bahasa(isi_berita or judul)
 
     # Bersihkan URL (normalisasi)
     url = result.get("url", "").strip()
