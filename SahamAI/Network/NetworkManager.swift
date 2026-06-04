@@ -31,17 +31,22 @@ class NetworkManager {
     
     private init() {}
     
-    /// Mendapatkan Base URL secara dinamis dengan mencoba kandidat IP secara paralel.
-    /// Jika satu IP tidak terhubung, akan langsung otomatis dialihkan ke IP lainnya yang aktif.
+    /// Mendapatkan Base URL secara dinamis dengan mencoba kandidat secara paralel.
+    /// Urutan prioritas:
+    ///   1. mDNS/Bonjour hostname → bekerja di jaringan apapun tanpa perlu tahu IP
+    ///   2. IP jaringan rumah (192.168.100.21)
+    ///   3. IP jaringan kantor (10.67.49.69) — static, tidak berubah (lihat pengaturan di bawah)
+    ///   4. localhost → untuk iOS Simulator
     private func getBaseURL() async -> String {
         if let verified = verifiedBaseURL {
             return verified
         }
         
         let candidates = [
-            "http://192.168.100.21:8080", // IP Mac Aktif
-            "http://10.67.49.69:8080",    // IP Mac Alternatif (Kantor/Lama)
-            "http://localhost:8080"       // Simulator
+            "http://MacBook-Pro-Satria.local:8080", // mDNS Bonjour — otomatis di jaringan apapun ✅
+            "http://192.168.100.21:8080",            // Static IP rumah
+            "http://10.67.49.69:8080",               // Static IP kantor (di-set manual di System Settings)
+            "http://localhost:8080"                  // iOS Simulator
         ]
         
         let workingURL = await withTaskGroup(of: String?.self) { group -> String in
@@ -50,7 +55,7 @@ class NetworkManager {
                     // Menggunakan endpoint /api/status untuk verifikasi koneksi backend
                     guard let url = URL(string: "\(candidate)/api/status") else { return nil }
                     var request = URLRequest(url: url)
-                    request.timeoutInterval = 1.5 // Timeout singkat agar peralihan cepat
+                    request.timeoutInterval = 2.0 // Sedikit lebih lama untuk mDNS resolve
                     request.httpMethod = "GET"
                     
                     do {
@@ -81,6 +86,13 @@ class NetworkManager {
         print("🔌 NetworkManager: Menggunakan backend \(workingURL)")
         return workingURL
     }
+    
+    /// Reset URL yang tersimpan — dipanggil saat deteksi pergantian jaringan
+    func resetVerifiedURL() {
+        verifiedBaseURL = nil
+        print("🔄 NetworkManager: URL di-reset, akan re-detect koneksi.")
+    }
+
     
     /// Mengambil daftar semua kode emiten saham
     func fetchSahamList() async throws -> [Saham] {
@@ -224,7 +236,7 @@ class NetworkManager {
                     
                     while let byte = try await iterator.next() {
                         buffer.append(byte)
-                        // Coba decode sebagai string UTF-8. 
+                        // Coba decode sebagai string UTF-8.
                         // Jika gagal, mungkin byte-nya merupakan bagian dari karakter multibyte
                         // yang belum lengkap (seperti emoji). Teruskan append.
                         if let decodedString = String(data: buffer, encoding: .utf8) {

@@ -14,6 +14,22 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <!-- CRITICAL ERROR BANNER (hidden by default, shown via SSE) -->
+    <div id="critical-error-banner" class="critical-banner hidden">
+        <div class="critical-banner-inner">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <div class="critical-banner-text">
+                <strong id="critical-banner-title">Error Kritis Sistem</strong>
+                <span id="critical-banner-msg">Terjadi kesalahan.</span>
+            </div>
+            <button onclick="switchTab('admin'); document.getElementById('critical-error-banner').classList.add('hidden');" class="btn btn-danger-small">
+                <i class="fa-solid fa-eye"></i> Lihat Detail
+            </button>
+            <button onclick="document.getElementById('critical-error-banner').classList.add('hidden')" class="btn btn-close-banner">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    </div>
     <div class="app-container">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
@@ -38,7 +54,8 @@
                 </button>
                 <button class="nav-item" data-tab="admin">
                     <i class="fa-solid fa-sliders"></i>
-                    <span>Sistem & Control</span>
+                    <span>Sistem &amp; Control</span>
+                    <span id="admin-error-badge" class="error-badge hidden">!</span>
                 </button>
             </nav>
 
@@ -325,6 +342,38 @@
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Log Panel (SSE real-time) -->
+                <div class="panel glass" id="system-log-panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-terminal" style="color: var(--color-sell);"></i> System Log — Notifikasi Error Real-Time</h3>
+                        <p>Log error dan event penting sistem yang terjadi secara real-time. Disambungkan via Server-Sent Events (SSE). Error kritis akan membuka halaman ini secara otomatis.</p>
+                    </div>
+                    <div class="panel-body">
+                        <div id="system-log-status" style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:0.8rem;">
+                            <span id="sse-dot" class="status-dot" style="background:#6b7280;"></span>
+                            <span id="sse-status-text" style="color:var(--text-muted);">Menghubungkan ke SSE stream...</span>
+                            <button onclick="clearSystemLog()" class="btn btn-secondary btn-mini" style="margin-left:auto;">
+                                <i class="fa-solid fa-trash"></i> Bersihkan Log
+                            </button>
+                        </div>
+                        <div class="stocks-table-container" style="max-height: 360px;">
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:80px;">Level</th>
+                                        <th style="width:130px;">Sumber</th>
+                                        <th>Pesan</th>
+                                        <th style="width:150px;">Waktu</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="system-log-body">
+                                    <tr><td colspan="4" class="text-center" style="color:var(--text-muted); padding:24px;">Belum ada event sistem.</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

@@ -14,7 +14,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import FastAPI, Depends, BackgroundTasks
+from fastapi import FastAPI, Depends, BackgroundTasks, Request
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -36,6 +37,7 @@ from backend.workers import (
 )
 from backend.agents.alert_agent import jalankan_monitoring
 from backend.scheduler import setup_scheduler, start_scheduler, stop_scheduler
+import backend.system_notifier as notifier
 
 # Import routes
 from backend.api.routes.rekomendasi import router as rekomendasi_router
@@ -228,6 +230,67 @@ async def push_alert(request: AlertPushRequest):
         f"Delta: {request.delta:+.1f} | Pesan: {request.pesan}"
     )
     return {"status": "success", "message": "Alert push notification simulated."}
+
+
+# ============================================================
+# SSE: Real-Time Admin Error Stream
+# ============================================================
+
+@app.get("/api/admin/events")
+async def admin_sse_stream(request: Request):
+    """
+    Server-Sent Events endpoint untuk streaming notifikasi error sistem
+    secara real-time ke dashboard administrator.
+    
+    Setiap browser tab yang membuka dashboard akan subscribe ke endpoint ini.
+    Ketika ada error kritis (scoring gagal, dll), event langsung dikirim ke browser.
+    """
+    queue = notifier.subscribe()
+
+    async def event_generator():
+        # Kirim semua error yang sudah ada saat pertama connect
+        existing = notifier.get_all_errors()
+        for entry in reversed(existing):  # Kirim dari yang lama ke baru
+            payload = {"type": "error" if entry["level"] in ("ERROR", "CRITICAL") else "info", "data": entry}
+            import json
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        # Stream event baru secara real-time
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    # Tunggu event baru (timeout 25 detik untuk keep-alive)
+                    raw = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    yield f"data: {raw}\n\n"
+                except asyncio.TimeoutError:
+                    # Kirim heartbeat agar koneksi tidak timeout
+                    yield f"data: {{\"type\": \"heartbeat\"}}\n\n"
+        finally:
+            notifier.unsubscribe(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
+@app.get("/api/admin/system-log")
+async def get_system_log():
+    """
+    Mengambil seluruh log event sistem (error & info) yang tersimpan di memory.
+    Digunakan saat pertama kali halaman admin dibuka.
+    """
+    return {
+        "total": len(notifier.get_all_errors()),
+        "unresolved_errors": len(notifier.get_unresolved_errors()),
+        "events": notifier.get_all_errors()
+    }
 
 
 @app.get("/api/alerts")

@@ -27,7 +27,7 @@ from backend.db.postgres import (
     Alert,
 )
 from backend.data.collectors.berita_collector import collect_berita_batch
-from backend.data.preprocessors.data_cleaner import clean_berita, hitung_sentimen_sederhana
+from backend.data.preprocessors.data_cleaner import clean_berita, hitung_sentimen_sederhana, hitung_sentimen_qwen
 
 # Timezone WIB (UTC+7)
 _WIB = timezone(timedelta(hours=7))
@@ -100,8 +100,8 @@ async def cek_berita_baru(state: AlertState) -> dict[str, Any]:
                 if url and url not in existing_urls:
                     # Bersihkan berita
                     cleaned = clean_berita(item)
-                    # Hitung skor sentimen
-                    cleaned["skor_sentimen"] = hitung_sentimen_sederhana(cleaned["judul"])
+                    # Hitung skor sentimen (Kasus 5)
+                    cleaned["skor_sentimen"] = await hitung_sentimen_qwen(cleaned["judul"])
                     berita_baru.append(cleaned)
                     
     except Exception as e:

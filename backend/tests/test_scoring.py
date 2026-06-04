@@ -8,6 +8,7 @@ Tes untuk memvalidasi:
 """
 
 import unittest
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.agents.scoring_agent import (
@@ -70,6 +71,7 @@ class TestScoringEngine(unittest.TestCase):
         """
         # Mock session & database execution untuk menghitung berita laporan keuangan
         mock_session = AsyncMock()
+        mock_session.__aenter__.return_value = mock_session
         mock_session_cls.return_value = mock_session
 
         # Mock query data makro (BI Rate, Kurs, dll) agar return kosong/normal

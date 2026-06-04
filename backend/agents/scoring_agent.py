@@ -725,29 +725,8 @@ async def hitung_skor(state: ScoringState) -> dict[str, Any]:
             )
 
         except Exception as e:
-            logger.error(f"   ❌ Gagal scoring {kode}: {type(e).__name__}: {e}")
-            # Masukkan skor netral untuk saham yang gagal
-            skor_per_saham.append({
-                "kode_saham": kode,
-                "tanggal_scoring": date.today().isoformat(),
-                "skor_total": 50.0,
-                "skor_fundamental": 50.0,
-                "skor_sentimen": 50.0,
-                "skor_sektor": 50.0,
-                "skor_makro": 50.0,
-                "skor_risiko": 50.0,
-                "bobot_fundamental": bobot["fundamental"],
-                "bobot_sentimen": bobot["sentimen"],
-                "bobot_sektor": bobot["sektor"],
-                "bobot_makro": bobot["makro"],
-                "bobot_risiko": bobot["risiko"],
-                "confidence": 0.1,
-                "sektor": "",
-                "data_fundamental": {},
-                "jumlah_berita": 0,
-                "ada_berita_negatif_besar": False,
-                "error": str(e),
-            })
+            logger.critical(f"🚨 CRITICAL: Gagal melakukan scoring untuk emiten {kode}. Seluruh proses dihentikan! Error: {e}")
+            raise RuntimeError(f"Gagal melakukan scoring untuk emiten {kode}: {e}")
 
     # Sort berdasarkan skor total (descending)
     skor_per_saham.sort(key=lambda x: x["skor_total"], reverse=True)
@@ -1322,6 +1301,16 @@ async def jalankan_scoring(
     logger.info("🚀" + "=" * 58)
 
     start_time = datetime.now(_WIB)
+
+    # Health Check database (Kasus 4)
+    try:
+        from sqlalchemy import text
+        async with async_session() as session:
+            await session.execute(text("SELECT 1"))
+        logger.info("✅ Health Check database sukses. Database online.")
+    except Exception as e:
+        logger.critical(f"🚨 CRITICAL: Database offline! Membatalkan seluruh proses scoring. Error: {e}")
+        raise RuntimeError(f"Database offline, scoring dibatalkan: {e}")
 
     # Build graph
     graph = build_scoring_graph()

@@ -26,9 +26,10 @@ from backend.data.collectors.berita_collector import collect_berita_batch, colle
 from backend.data.collectors.fundamental_collector import collect_fundamental_batch, collect_last_prices
 from backend.data.collectors.xbrl_collector import collect_xbrl_fundamental
 from backend.data.collectors.makro_collector import collect_makro
-from backend.data.preprocessors.data_cleaner import clean_berita, normalize_fundamental, hitung_sentimen_sederhana
+from backend.data.preprocessors.data_cleaner import clean_berita, normalize_fundamental, hitung_sentimen_sederhana, hitung_sentimen_qwen
 from backend.rag.indexer import index_batch_berita
 from backend.agents.scoring_agent import jalankan_scoring
+import backend.system_notifier as notifier
 
 _WIB = timezone(timedelta(hours=7))
 
@@ -116,9 +117,9 @@ async def scrape_news_job() -> None:
                 try:
                     # Clean data
                     cleaned = clean_berita(item)
-                    # Hitung sentimen menggunakan isi_berita jika ada, fallback ke judul
+                    # Hitung sentimen menggunakan isi_berita jika ada, fallback ke judul (Kasus 5)
                     sentimen_text = cleaned.get("isi_berita") or cleaned["judul"]
-                    cleaned["skor_sentimen"] = hitung_sentimen_sederhana(sentimen_text)
+                    cleaned["skor_sentimen"] = await hitung_sentimen_qwen(sentimen_text)
  
                     # Gunakan PostgreSQL insert ON CONFLICT DO NOTHING
                     stmt = pg_insert(Berita).values(
@@ -309,6 +310,24 @@ async def scrape_makro_job() -> None:
             await session.commit()
         logger.info(f"💾 {saved_count} data makroekonomi berhasil disimpan/diperbarui.")
 
+        # Index data makro ke ChromaDB (Kasus 1)
+        if raw_makro:
+            try:
+                from backend.rag.indexer import index_data_makro
+                
+                summary_parts = []
+                for item in raw_makro:
+                    summary_parts.append(
+                        f"- {item['indikator'].replace('_', ' ').upper()}: {item['nilai']} {item['satuan']} (Sumber: {item['sumber']})"
+                    )
+                
+                summary_text = f"Kondisi Makroekonomi Indonesia per {date.today().isoformat()}:\n" + "\n".join(summary_parts)
+                
+                logger.info("📥 Meng-index ringkasan data makro ke ChromaDB...")
+                await index_data_makro(summary_text, indikator="ringkasan_makro", sumber="system_generated")
+            except Exception as ex_index:
+                logger.error(f"❌ Gagal meng-index data makro ke ChromaDB: {ex_index}")
+
     except Exception as e:
         logger.error(f"❌ Gagal menjalankan scraping makroekonomi: {e}")
     logger.info("⏰ Background job: Scraping Makroekonomi selesai.")
@@ -327,16 +346,26 @@ async def run_scoring_job() -> None:
             kode_saham_list = [row for row in result.scalars().all()]
 
         if not kode_saham_list:
-            logger.warning("⚠️ Tidak ada kode saham terdaftar untuk di-scoring.")
+            msg = "Tidak ada kode saham terdaftar untuk di-scoring."
+            logger.warning(f"⚠️ {msg}")
+            notifier.report_error("scoring_job", msg, level="ERROR", auto_open_browser=True)
             return
 
         # 2. Jalankan pipeline scoring
         logger.info(f"🚀 Menjalankan scoring untuk {len(kode_saham_list)} saham...")
         await jalankan_scoring(kode_saham_list, simpan_ke_db=True)
         logger.info("✅ Scoring rekomendasi mingguan selesai.")
+        notifier.report_info("scoring_job", f"Scoring mingguan selesai untuk {len(kode_saham_list)} emiten. Lihat hasil di tab Rekomendasi.")
 
+    except RuntimeError as e:
+        # RuntimeError dilempar oleh scoring_agent jika ada emiten yang gagal atau DB offline
+        msg = f"Scoring DIHENTIKAN karena error kritis: {e}"
+        logger.critical(f"🚨 {msg}")
+        notifier.report_error("scoring_job", msg, level="CRITICAL", auto_open_browser=True)
     except Exception as e:
-        logger.error(f"❌ Gagal menjalankan scoring mingguan: {e}")
+        msg = f"Gagal menjalankan scoring mingguan: {type(e).__name__}: {e}"
+        logger.error(f"❌ {msg}")
+        notifier.report_error("scoring_job", msg, level="ERROR", auto_open_browser=True)
     logger.info("⏰ Background job: Scoring selesai.")
 
 

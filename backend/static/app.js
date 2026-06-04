@@ -583,13 +583,138 @@ function startAdminPolling() {
 
 
 // ============================================================
-// 5. Inisialisasi Aplikasi Saat Load
+// 5. System Log & SSE Real-Time Notifier
+// ============================================================
+
+let _sseErrorCount = 0;
+
+function initSSENotifier() {
+    const sseDot = document.getElementById('sse-dot');
+    const sseText = document.getElementById('sse-status-text');
+    const badge = document.getElementById('admin-error-badge');
+
+    const es = new EventSource('/api/admin/events');
+
+    es.onopen = () => {
+        sseDot.style.background = 'var(--color-buy)';
+        sseDot.style.boxShadow = '0 0 6px var(--color-buy)';
+        sseText.style.color = 'var(--color-buy)';
+        sseText.innerText = 'SSE Terhubung — Menerima notifikasi real-time';
+    };
+
+    es.onerror = () => {
+        sseDot.style.background = 'var(--color-sell)';
+        sseDot.style.boxShadow = 'none';
+        sseText.style.color = 'var(--color-sell)';
+        sseText.innerText = 'SSE Terputus — Mencoba sambung ulang...';
+    };
+
+    es.onmessage = (event) => {
+        try {
+            const msg = JSON.parse(event.data);
+
+            // Heartbeat — tidak perlu tampilkan apa pun
+            if (msg.type === 'heartbeat') return;
+
+            const entry = msg.data;
+            if (!entry) return;
+
+            // Render ke System Log table
+            appendSystemLogEntry(entry);
+
+            // Jika ERROR atau CRITICAL: tampilkan banner + badge
+            if (entry.level === 'ERROR' || entry.level === 'CRITICAL') {
+                _sseErrorCount++;
+
+                // Update badge di sidebar
+                badge.innerText = _sseErrorCount;
+                badge.classList.remove('hidden');
+
+                // Tampilkan banner di atas halaman
+                const banner = document.getElementById('critical-error-banner');
+                const bannerTitle = document.getElementById('critical-banner-title');
+                const bannerMsg = document.getElementById('critical-banner-msg');
+
+                if (entry.level === 'CRITICAL') {
+                    bannerTitle.innerText = '🚨 Error Kritis Sistem — Proses Dihentikan';
+                } else {
+                    bannerTitle.innerText = '⚠️ Error Sistem';
+                }
+                bannerMsg.innerText = `[${entry.source}] ${entry.message}`;
+                banner.classList.remove('hidden');
+
+                // Auto-scroll ke panel system log jika admin tab aktif
+                if (state.activeTab === 'admin') {
+                    document.getElementById('system-log-panel')?.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+        } catch (e) {
+            console.warn('SSE parse error:', e);
+        }
+    };
+}
+
+function appendSystemLogEntry(entry) {
+    const tbody = document.getElementById('system-log-body');
+
+    // Hapus placeholder jika ada
+    const placeholder = tbody.querySelector('tr td[colspan]');
+    if (placeholder) placeholder.closest('tr').remove();
+
+    const levelConfig = {
+        'CRITICAL': { color: 'var(--color-sell)', bg: 'rgba(239,68,68,0.10)', icon: '🚨', label: 'CRITICAL' },
+        'ERROR':    { color: '#f97316',            bg: 'rgba(249,115,22,0.10)', icon: '❌', label: 'ERROR' },
+        'INFO':     { color: 'var(--color-buy)',   bg: 'rgba(16,185,129,0.08)', icon: '✅', label: 'INFO' },
+    };
+    const cfg = levelConfig[entry.level] || levelConfig['INFO'];
+
+    const tr = document.createElement('tr');
+    tr.style.borderLeft = `3px solid ${cfg.color}`;
+    tr.innerHTML = `
+        <td>
+            <span style="
+                background: ${cfg.bg};
+                color: ${cfg.color};
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 0.7rem;
+                font-weight: 700;
+                font-family: var(--font-heading);
+                white-space: nowrap;
+            ">${cfg.icon} ${cfg.label}</span>
+        </td>
+        <td style="color: var(--text-muted); font-size: 0.75rem; white-space: nowrap;">${entry.source || '-'}</td>
+        <td style="color: var(--text-secondary); font-size: 0.8rem; line-height: 1.4;">${entry.message || '-'}</td>
+        <td style="color: var(--text-muted); font-size: 0.7rem; white-space: nowrap;">${entry.timestamp || ''}</td>
+    `;
+
+    // Masukkan di paling atas (terbaru di atas)
+    tbody.insertBefore(tr, tbody.firstChild);
+
+    // Batasi 50 baris
+    while (tbody.rows.length > 50) {
+        tbody.removeChild(tbody.lastChild);
+    }
+}
+
+function clearSystemLog() {
+    const tbody = document.getElementById('system-log-body');
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center" style="color:var(--text-muted); padding:24px;">Log dibersihkan.</td></tr>';
+    _sseErrorCount = 0;
+    document.getElementById('admin-error-badge').classList.add('hidden');
+    document.getElementById('critical-error-banner').classList.add('hidden');
+}
+
+
+// ============================================================
+// 6. Inisialisasi Aplikasi Saat Load
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     initChatbot();
     initAddSahamForm();
     startAdminPolling();
+    initSSENotifier(); // <-- Subscribe ke SSE notifikasi real-time
 
     // Jalankan load rekomendasi secara default saat pertama kali dimuat
     loadRecommendations();

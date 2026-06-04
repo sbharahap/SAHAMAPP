@@ -733,6 +733,12 @@ PERTANYAAN USER:
             f"confidence={confidence:.2f})"
         )
 
+        # RAG Triad Evaluasi (Kasus 6)
+        if dokumen:
+            contexts_list = [doc.get("teks", "") for doc in dokumen[:7]]
+            from backend.rag.evaluator import evaluasi_rag_triad
+            asyncio.create_task(evaluasi_rag_triad(pertanyaan, contexts_list, jawaban))
+
         return {
             "jawaban_draft": jawaban,
             "confidence": confidence,

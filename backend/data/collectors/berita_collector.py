@@ -31,6 +31,7 @@ Catatan:
 """
 
 import asyncio
+import base64
 from datetime import datetime, timedelta, timezone
 import re
 from typing import Any
@@ -52,17 +53,72 @@ _HTTP_TIMEOUT = 30.0
 # Delay antar request RSS untuk menghindari rate limiting
 _REQUEST_DELAY_SECONDS: float = 2.0
 
+# Whitelist media friendly yang membolehkan scraping dan stabil
+ALLOWED_DOMAINS = [
+    "kontan.co.id",
+    "cnbcindonesia.com",
+    "antaranews.com",
+    "bisnis.com",
+    "investor.id",
+    "republika.co.id",
+    "liputan6.com",
+    "sindonews.com",
+    "tempo.co",
+    "idxchannel.com",
+    "detik.com",
+    "kompas.com",
+    "tribunnews.com"
+]
+
 # User agent agar tidak diblokir oleh server
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Apple Silicon Mac OS X) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
+def decode_google_news_url(url: str) -> str:
+    """
+    Mendecode URL redirect Google News menggunakan googlenewsdecoder.
+    """
+    try:
+        if "rss/articles" not in url and "articles/" not in url:
+            return url
+        from googlenewsdecoder import gnewsdecoder
+        decoded_info = gnewsdecoder(url, interval=1)
+        if decoded_info.get("status") and decoded_info.get("decoded_url"):
+            logger.info(f"✅ Google News URL decoded: {decoded_info['decoded_url']}")
+            return decoded_info["decoded_url"]
+    except Exception as e:
+        logger.warning(f"⚠️ Gagal mendecode URL Google News '{url}' dengan googlenewsdecoder: {e}")
+
+    try:
+        match = re.search(r"articles/([^?]+)", url)
+        if not match:
+            return url
+        
+        encoded_str = match.group(1)
+        # Pad string base64 jika panjangnya tidak kelipatan 4
+        padded = encoded_str + "=" * ((4 - len(encoded_str) % 4) % 4)
+        decoded = base64.b64decode(padded)
+        
+        # Cari pola URL (http:// atau https://) di dalam bytes hasil decode
+        url_match = re.search(b"(https?://[^\x00-\x1f\x7f-\xff]+)", decoded)
+        if url_match:
+            return url_match.group(1).decode("utf-8")
+    except Exception as e:
+        pass
+    return url
+
+
 async def fetch_article_content(url: str) -> str:
     """
     Mengambil isi berita lengkap secara async dari URL sumber, membersihkan HTML tag,
     dan mengekstrak teks berita utama.
     """
+    # Decode Google News URL jika masih dalam format google news
+    if "news.google.com" in url:
+        url = decode_google_news_url(url)
+
     try:
         async with httpx.AsyncClient(
             timeout=15.0,
@@ -71,6 +127,16 @@ async def fetch_article_content(url: str) -> str:
         ) as client:
             response = await client.get(url)
             response.raise_for_status()
+
+        # Cek domain final setelah redirect (Kasus 2)
+        final_url = str(response.url)
+        from urllib.parse import urlparse
+        domain = urlparse(final_url).netloc.lower()
+
+        is_allowed = any(allowed in domain for allowed in ALLOWED_DOMAINS)
+        if not is_allowed:
+            logger.warning(f"⚠️ Domain '{domain}' tidak ada dalam whitelist scraping. Skip.")
+            return ""
 
         soup = BeautifulSoup(response.text, "html.parser")
         
@@ -115,6 +181,66 @@ async def fetch_article_content(url: str) -> str:
     except Exception as e:
         logger.warning(f"⚠️ Gagal mengambil isi berita dari {url}: {e}")
         return ""
+async def is_news_relevant_llm(title: str, content: str) -> bool:
+    """
+    LLM as a Judge untuk memfilter relevansi berita (Kasus 6).
+    Menilai apakah berita ini benar-benar relevan untuk analisis keputusan investasi saham
+    atau hanya noise (CSR, diskon belanja, ucapan hari raya, dll).
+    """
+    # Lakukan filtering keyword cepat dulu agar tidak boros token ke LLM
+    if not is_news_relevant(title, content):
+        return False
+
+    try:
+        from langchain_ollama import ChatOllama
+        from langchain_core.messages import SystemMessage, HumanMessage
+        import json
+        from backend.config import settings
+
+        llm = ChatOllama(
+            model=settings.ollama_model,
+            base_url=settings.ollama_base_url,
+            temperature=0.0,
+            timeout=20,
+        )
+
+        prompt = f"""Kamu adalah analis investasi profesional yang bertindak sebagai juri (LLM as a Judge).
+Tugasmu adalah menilai apakah berita keuangan berikut ini RELEVAN untuk analisis keputusan investasi saham emiten terkait, atau hanya berita promosi/CSR/iklan/noise yang tidak bernilai investasi.
+
+Judul Berita: "{title}"
+Isi Berita (Potongan):
+"{content[:1000]}"
+
+Kriteria Relevan (True):
+- Berita tentang kinerja keuangan, laba, pendapatan, dividen, aksi korporasi (akuisisi, merger, right issue), target harga, rekomendasi saham, restrukturisasi, sengketa bisnis penting, ekspansi bisnis, atau perubahan manajemen emiten.
+
+Kriteria Tidak Relevan (False):
+- Berita tentang promosi produk biasa, diskon belanja, lowongan kerja (loker), program CSR/beasiswa, kegiatan olahraga/donasi rutin, ucapan selamat hari raya, info traveling, gosip, kecelakaan minor, atau siaran pers promosi komersial biasa yang tidak mempengaruhi nilai saham secara fundamental.
+
+Berikan penilaianmu dalam format JSON:
+{{"relevan": boolean, "alasan": "penjelasan singkat 1 kalimat"}}
+"""
+        messages = [
+            SystemMessage(content="Kamu adalah juri investasi profesional. Jawab hanya dengan format JSON valid."),
+            HumanMessage(content=prompt)
+        ]
+
+        response = await llm.ainvoke(messages)
+        res_text = response.content.strip()
+
+        if "```json" in res_text:
+            res_text = res_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in res_text:
+            res_text = res_text.split("```")[1].strip()
+
+        data = json.loads(res_text.strip())
+        is_rel = bool(data.get("relevan", False))
+        logger.info(f"⚖️ Ingestion Judge: '{title[:50]}' -> Relevan: {is_rel} (Alasan: {data.get('alasan', '')})")
+        return is_rel
+    except Exception as e:
+        logger.warning(f"⚠️ Ingestion Judge gagal ({e}). Fallback ke keyword filter.")
+        return True  # Fallback ke True jika keyword filter sudah lolos
+
 
 def is_news_relevant(title: str, content: str = "") -> bool:
     """
@@ -220,6 +346,8 @@ def _normalize_berita_entry(
     # Validasi minimal: judul dan URL harus ada
     if not judul or not url:
         return None
+
+    # URL google news akan didecode nanti saat akan di-scrape untuk mempercepat proses normalisasi awal
 
     tanggal_publish = _parse_published_date(entry)
     if tanggal_publish is None:
@@ -451,23 +579,36 @@ async def collect_berita(
     # Deduplikasi
     unique_berita = _deduplikasi_berita(all_berita)
 
-    # Batasi ke top 8 berita terbaru untuk menghindari rate limit saat mengambil isi penuh
-    unique_berita = unique_berita[:8]
+    # Batasi ke top 15 berita terbaru untuk di-scrape agar memiliki pool cadangan (Kasus 2)
+    unique_berita = unique_berita[:15]
 
     relevant_berita: list[dict[str, Any]] = []
     for berita in unique_berita:
         title = berita["judul"]
         if is_news_relevant(title):
             url = berita["url"]
+            # Decode URL di sini sebelum di-scrape agar lebih efisien dan hemat network call
+            if "news.google.com" in url:
+                url = decode_google_news_url(url)
+                berita["url"] = url
+                
             logger.info(f"📰 Mengambil isi berita: {title[:50]}...")
             content = await fetch_article_content(url)
             
-            # Verifikasi lagi relevansi dengan isi berita
-            if is_news_relevant(title, content):
-                berita["isi_berita"] = content
-                relevant_berita.append(berita)
+            # Pastikan isi berita berhasil di-scrape dan cukup panjang (Kasus 2)
+            if content and len(content.strip()) >= 200:
+                # Verifikasi relevansi secara mendalam menggunakan LLM as a Judge (Kasus 6)
+                if await is_news_relevant_llm(title, content):
+                    berita["isi_berita"] = content
+                    relevant_berita.append(berita)
+                    # Batasi ke maksimal 5 berita berkualitas per emiten
+                    if len(relevant_berita) >= 5:
+                        logger.info(f"✅ Sudah mencapai batas 5 berita relevan untuk {kode}. Berhenti scraping.")
+                        break
+                else:
+                    logger.info(f"🗑️ Membuang berita tidak relevan setelah cek isi (LLM Judge): {title[:50]}")
             else:
-                logger.info(f"🗑️ Membuang berita tidak relevan setelah cek isi: {title[:50]}")
+                logger.info(f"🗑️ Membuang berita karena gagal scrape isi atau isi terlalu pendek: {title[:50]}")
             
             # Delay kecil agar sopan ke server news
             await asyncio.sleep(1.0)
@@ -574,23 +715,36 @@ async def collect_berita_pasar(
     # Deduplikasi
     unique_berita = _deduplikasi_berita(all_berita)
 
-    # Batasi ke top 8 berita terbaru
-    unique_berita = unique_berita[:8]
+    # Batasi ke top 15 berita terbaru untuk di-scrape agar memiliki pool cadangan (Kasus 2)
+    unique_berita = unique_berita[:15]
 
     relevant_berita: list[dict[str, Any]] = []
     for berita in unique_berita:
         title = berita["judul"]
         if is_news_relevant(title):
             url = berita["url"]
+            # Decode URL di sini sebelum di-scrape agar lebih efisien dan hemat network call
+            if "news.google.com" in url:
+                url = decode_google_news_url(url)
+                berita["url"] = url
+
             logger.info(f"🌐 Mengambil isi berita pasar: {title[:50]}...")
             content = await fetch_article_content(url)
             
-            # Verifikasi lagi relevansi dengan isi berita
-            if is_news_relevant(title, content):
-                berita["isi_berita"] = content
-                relevant_berita.append(berita)
+            # Pastikan isi berita berhasil di-scrape dan cukup panjang (Kasus 2)
+            if content and len(content.strip()) >= 200:
+                # Verifikasi relevansi secara mendalam menggunakan LLM as a Judge (Kasus 6)
+                if await is_news_relevant_llm(title, content):
+                    berita["isi_berita"] = content
+                    relevant_berita.append(berita)
+                    # Batasi ke maksimal 5 berita berkualitas
+                    if len(relevant_berita) >= 5:
+                        logger.info("✅ Sudah mencapai batas 5 berita pasar relevan. Berhenti scraping.")
+                        break
+                else:
+                    logger.info(f"🗑️ Membuang berita pasar tidak relevan setelah cek isi (LLM Judge): {title[:50]}")
             else:
-                logger.info(f"🗑️ Membuang berita pasar tidak relevan setelah cek isi: {title[:50]}")
+                logger.info(f"🗑️ Membuang berita pasar karena gagal scrape isi atau isi terlalu pendek: {title[:50]}")
             
             # Delay kecil agar sopan ke server news
             await asyncio.sleep(1.0)

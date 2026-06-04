@@ -415,6 +415,108 @@ _KATA_NEGASI: frozenset[str] = frozenset({
 })
 
 
+async def hitung_sentimen_qwen(teks: str) -> float:
+    """
+    Hitung skor sentimen menggunakan model LLM Qwen dengan metode Multi-Head Attention.
+
+    Heads:
+    1. Financial Impact: dampak pada pendapatan/laba emiten.
+    2. Market Sentiment: persepsi pelaku pasar/investor.
+    3. Macro & Regulatory: pengaruh kondisi makroekonomi/industri/regulasi.
+    """
+    if not teks or not teks.strip():
+        return 0.0
+
+    try:
+        from langchain_ollama import ChatOllama
+        from langchain_core.messages import SystemMessage, HumanMessage
+        import json
+        from backend.config import settings
+
+        llm = ChatOllama(
+            model=settings.ollama_model,
+            base_url=settings.ollama_base_url,
+            temperature=0.0,
+            timeout=30,
+        )
+
+        prompt = f"""Tolong lakukan analisis sentimen finansial terhadap berita/teks berikut menggunakan metode Multi-Head Attention.
+
+Teks Berita:
+"{teks}"
+
+Instruksi:
+Evaluasi teks di atas berdasarkan 3 aspek (Attention Heads) berikut:
+1. "financial_impact": Sejauh mana berita berdampak positif atau negatif pada pendapatan, laba, arus kas, atau aset emiten (-1.0 sangat negatif, 1.0 sangat positif).
+2. "market_sentiment": Bagaimana berita ini mempengaruhi reputasi emiten dan persepsi psikologis pelaku pasar/investor ritel (-1.0 sangat negatif, 1.0 sangat positif).
+3. "macro_industry": Dampak kondisi ekonomi makro, industri, dan regulasi pemerintah terhadap emiten ini (-1.0 sangat negatif, 1.0 sangat positif).
+
+Untuk masing-masing aspek di atas:
+- Tentukan skor (score) antara -1.0 dan 1.0.
+- Tentukan bobot perhatian (weight) antara 0.0 dan 1.0 yang mencerminkan tingkat kepentingan aspek tersebut dalam berita ini.
+- Total semua bobot (weight) harus berjumlah 1.0. Jika total tidak 1.0, tolong normalisasikan.
+
+Format output wajib JSON:
+{{
+  "financial_impact": {{"score": float, "weight": float}},
+  "market_sentiment": {{"score": float, "weight": float}},
+  "macro_industry": {{"score": float, "weight": float}}
+}}
+"""
+        messages = [
+            SystemMessage(content="Kamu adalah analis sentimen finansial profesional. Jawab hanya dengan format JSON valid."),
+            HumanMessage(content=prompt)
+        ]
+
+        response = await llm.ainvoke(messages)
+        res_text = response.content.strip()
+
+        if "```json" in res_text:
+            res_text = res_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in res_text:
+            res_text = res_text.split("```")[1].strip()
+
+        data = json.loads(res_text.strip())
+
+        # Hitung weighted score untuk memastikan validitas matematis
+        fi = data.get("financial_impact", {})
+        ms = data.get("market_sentiment", {})
+        mi = data.get("macro_industry", {})
+
+        fi_score = float(fi.get("score", 0.0))
+        fi_weight = float(fi.get("weight", 0.0))
+
+        ms_score = float(ms.get("score", 0.0))
+        ms_weight = float(ms.get("weight", 0.0))
+
+        mi_score = float(mi.get("score", 0.0))
+        mi_weight = float(mi.get("weight", 0.0))
+
+        total_weight = fi_weight + ms_weight + mi_weight
+        if total_weight == 0:
+            total_weight = 1.0
+            fi_weight, ms_weight, mi_weight = 0.33, 0.33, 0.34
+
+        final_score = (
+            (fi_score * fi_weight + ms_score * ms_weight + mi_score * mi_weight)
+            / total_weight
+        )
+
+        logger.info(
+            f"🧠 Multi-Head Attention Qwen: FI={fi_score:.2f}(w={fi_weight:.2f}), "
+            f"MS={ms_score:.2f}(w={ms_weight:.2f}), MI={mi_score:.2f}(w={mi_weight:.2f}) -> "
+            f"Final={final_score:.4f}"
+        )
+        return round(final_score, 4)
+
+    except Exception as e:
+        logger.warning(
+            f"⚠️ Gagal menghitung sentimen menggunakan Qwen ({e}). "
+            f"Fallback ke sentimen sederhana."
+        )
+        return hitung_sentimen_sederhana(teks)
+
+
 def hitung_sentimen_sederhana(teks: str) -> float:
     """
     Hitung skor sentimen teks menggunakan keyword matching sederhana.

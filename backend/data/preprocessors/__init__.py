@@ -10,6 +10,7 @@ sebelum disimpan ke database atau diproses oleh model AI:
 from backend.data.preprocessors.data_cleaner import (
     clean_berita,
     hitung_sentimen_sederhana,
+    hitung_sentimen_qwen,
     normalize_fundamental,
 )
 from backend.data.preprocessors.embedder import (
@@ -22,6 +23,7 @@ __all__ = [
     "normalize_fundamental",
     "clean_berita",
     "hitung_sentimen_sederhana",
+    "hitung_sentimen_qwen",
     "embed_dokumen",
     "embed_batch",
     "get_embedder",

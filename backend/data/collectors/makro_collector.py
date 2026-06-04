@@ -149,7 +149,12 @@ async def collect_bi_rate() -> dict[str, Any] | None:
     if result:
         return result
 
-    # Strategi 3: Fallback ke cache database
+    # Strategi 3: Fetch dari berita menggunakan LLM (Kasus 3)
+    result = await _get_bi_rate_from_news()
+    if result:
+        return result
+
+    # Strategi 4: Fallback ke cache database
     try:
         logger.info("🏦 Scraping BI Rate gagal. Mencoba mengambil data historis terakhir dari database...")
         from backend.db.postgres import async_session, Makro
@@ -322,16 +327,18 @@ async def _scrape_bi_rate_from_moneter() -> dict[str, Any] | None:
 
 async def collect_inflasi() -> dict[str, Any] | None:
     """
-    Ambil data inflasi YoY (Year-on-Year) terkini dari Bank Indonesia.
+    Ambil data inflasi YoY (Year-on-Year) terkini.
 
-    Returns:
-        Dict dengan format model Makro, atau None jika gagal
+    Strategi pengambilan data (berurutan):
+    1. Scrape halaman publik Bank Indonesia
+    2. Jika gagal, coba fetch dari berita menggunakan LLM (Kasus 3)
+    3. Jika gagal, ambil nilai terbaru yang ada di database PostgreSQL (cache)
     """
+    logger.debug("📈 Mengambil data inflasi...")
+
+    # Strategi 1: Scrape dari website BI
     url = "https://www.bi.go.id/id/statistik/indikator/data-inflasi.aspx"
-
     try:
-        logger.debug("📈 Mengambil data inflasi dari Bank Indonesia...")
-
         async with httpx.AsyncClient(
             timeout=_HTTP_TIMEOUT,
             follow_redirects=True,
@@ -391,12 +398,43 @@ async def collect_inflasi() -> dict[str, Any] | None:
                 logger.info(f"📈 Inflasi YoY (teks): {inflasi}%")
                 return result
 
-        logger.warning("⚠️  Data inflasi tidak ditemukan di halaman BI")
-        return None
-
     except Exception as e:
-        logger.error(f"❌ Error ambil inflasi: {type(e).__name__}: {e}")
-        return None
+        logger.debug(f"⚠️ Scraping inflasi dari website BI gagal: {e}")
+
+    # Strategi 2: Fetch dari berita menggunakan LLM (Kasus 3)
+    result = await _get_inflasi_from_news()
+    if result:
+        return result
+
+    # Strategi 3: Fallback ke cache database
+    try:
+        logger.info("📈 Scraping inflasi gagal. Mencoba mengambil data historis terakhir dari database...")
+        from backend.db.postgres import async_session, Makro
+        from sqlalchemy import select
+
+        async with async_session() as session:
+            stmt = (
+                select(Makro)
+                .where(Makro.indikator == "inflasi_yoy")
+                .order_by(Makro.tanggal.desc())
+                .limit(1)
+            )
+            db_res = await session.execute(stmt)
+            latest_inf = db_res.scalar_one_or_none()
+            if latest_inf:
+                logger.info(f"📈 Menggunakan Inflasi YoY terakhir dari database: {latest_inf.nilai}% (tanggal: {latest_inf.tanggal})")
+                return {
+                    "tanggal": date.today(),
+                    "indikator": "inflasi_yoy",
+                    "nilai": latest_inf.nilai,
+                    "satuan": "persen",
+                    "sumber": "database_cache",
+                }
+    except Exception as e:
+        logger.error(f"❌ Gagal memuat cache inflasi dari DB: {e}")
+
+    logger.warning("⚠️ Gagal mengambil inflasi dari semua sumber.")
+    return None
 
 
 # ============================================================
@@ -525,3 +563,165 @@ async def collect_makro() -> list[dict[str, Any]]:
         )
 
     return makro_data
+
+
+async def _get_bi_rate_from_news() -> dict[str, Any] | None:
+    from urllib.parse import quote_plus
+    import feedparser
+    from langchain_ollama import ChatOllama
+    from langchain_core.messages import SystemMessage, HumanMessage
+    import json
+    
+    query = "suku bunga BI rate terbaru"
+    encoded_query = quote_plus(query)
+    url = f"https://news.google.com/rss/search?q={encoded_query}&hl=id&gl=ID&ceid=ID:id"
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            
+        import re
+        cleaned_text = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#[0-9]+;)', '&amp;', resp.text)
+        feed = feedparser.parse(cleaned_text)
+        
+        if not feed.entries:
+            return None
+            
+        # Ambil 5 judul berita teratas
+        titles = [entry.get("title", "") for entry in feed.entries[:5]]
+        titles_str = "\n".join(f"- {t}" for t in titles)
+        
+        logger.info(f"🏦 Mencari BI Rate dari berita:\n{titles_str}")
+        
+        # Panggil Qwen untuk ekstraksi
+        llm = ChatOllama(
+            model=settings.ollama_model,
+            base_url=settings.ollama_base_url,
+            temperature=0.0,
+            timeout=30,
+        )
+        
+        prompt = f"""Ekstrak angka persentase BI Rate (suku bunga acuan Bank Indonesia) terbaru yang disebutkan dalam judul-judul berita berikut.
+
+Berita:
+{titles_str}
+
+Instruksi:
+1. Temukan angka persentase suku bunga acuan terbaru (misalnya: 5.25 atau 6.00). Jangan sertakan simbol % dalam nilai JSON.
+2. Jika ada koma, ganti dengan titik (contoh: 5,25 menjadi 5.25).
+3. Kembalikan hasilnya HANYA dalam format JSON seperti ini:
+{{"nilai": <float_angka>}}
+4. Jika tidak ada informasi suku bunga yang jelas, kembalikan {{"nilai": null}}.
+"""
+        messages = [
+            SystemMessage(content="Kamu adalah asisten keuangan yang mengekstrak data numerik secara akurat dalam format JSON. Jawab hanya dengan JSON valid."),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = await llm.ainvoke(messages)
+        res_text = response.content.strip()
+        
+        if "```json" in res_text:
+            res_text = res_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in res_text:
+            res_text = res_text.split("```")[1].strip()
+            
+        data = json.loads(res_text.strip())
+        val = data.get("nilai")
+        if val is not None:
+            val = float(val)
+            if 3.0 <= val <= 12.0:
+                logger.info(f"🏦 BI Rate berhasil diekstrak dari berita: {val}%")
+                return {
+                    "tanggal": date.today(),
+                    "indikator": "bi_rate",
+                    "nilai": val,
+                    "satuan": "persen",
+                    "sumber": "news_extraction",
+                }
+        return None
+    except Exception as e:
+        logger.error(f"❌ Gagal ekstraksi BI Rate dari berita: {e}")
+        return None
+
+
+async def _get_inflasi_from_news() -> dict[str, Any] | None:
+    from urllib.parse import quote_plus
+    import feedparser
+    from langchain_ollama import ChatOllama
+    from langchain_core.messages import SystemMessage, HumanMessage
+    import json
+    
+    query = "inflasi yoy indonesia terbaru bps"
+    encoded_query = quote_plus(query)
+    url = f"https://news.google.com/rss/search?q={encoded_query}&hl=id&gl=ID&ceid=ID:id"
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            
+        import re
+        cleaned_text = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#[0-9]+;)', '&amp;', resp.text)
+        feed = feedparser.parse(cleaned_text)
+        
+        if not feed.entries:
+            return None
+            
+        # Ambil 5 judul berita teratas
+        titles = [entry.get("title", "") for entry in feed.entries[:5]]
+        titles_str = "\n".join(f"- {t}" for t in titles)
+        
+        logger.info(f"📈 Mencari Inflasi YoY dari berita:\n{titles_str}")
+        
+        # Panggil Qwen untuk ekstraksi
+        llm = ChatOllama(
+            model=settings.ollama_model,
+            base_url=settings.ollama_base_url,
+            temperature=0.0,
+            timeout=30,
+        )
+        
+        prompt = f"""Ekstrak angka persentase Inflasi YoY (Year-on-Year) terbaru yang disebutkan dalam judul-judul berita berikut.
+
+Berita:
+{titles_str}
+
+Instruksi:
+1. Temukan angka persentase inflasi tahunan terbaru (misalnya: 3.48 atau 4.76). Jangan sertakan simbol % dalam nilai JSON.
+2. Jika ada koma, ganti dengan titik (contoh: 3,48 menjadi 3.48).
+3. Kembalikan hasilnya HANYA dalam format JSON seperti ini:
+{{"nilai": <float_angka>}}
+4. Jika tidak ada informasi inflasi yang jelas, kembalikan {{"nilai": null}}.
+"""
+        messages = [
+            SystemMessage(content="Kamu adalah asisten keuangan yang mengekstrak data numerik secara akurat dalam format JSON. Jawab hanya dengan JSON valid."),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = await llm.ainvoke(messages)
+        res_text = response.content.strip()
+        
+        if "```json" in res_text:
+            res_text = res_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in res_text:
+            res_text = res_text.split("```")[1].strip()
+            
+        data = json.loads(res_text.strip())
+        val = data.get("nilai")
+        if val is not None:
+            val = float(val)
+            if -2.0 <= val <= 20.0:
+                logger.info(f"📈 Inflasi YoY berhasil diekstrak dari berita: {val}%")
+                return {
+                    "tanggal": date.today(),
+                    "indikator": "inflasi_yoy",
+                    "nilai": val,
+                    "satuan": "persen",
+                    "sumber": "news_extraction",
+                }
+        return None
+    except Exception as e:
+        logger.error(f"❌ Gagal ekstraksi Inflasi dari berita: {e}")
+        return None
