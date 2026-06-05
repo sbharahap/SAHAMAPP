@@ -83,6 +83,31 @@ struct DetailSahamView: View {
                     .cornerRadius(16)
                     .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 3)
                     
+                    if d.dataTerbatas == true {
+                        HStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.title3)
+                                .foregroundColor(.orange)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Data Kurang Lengkap")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.orange)
+                                Text(d.catatanData ?? "Data fundamental atau berita pendukung kurang lengkap di database.")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                        )
+                        .padding(.horizontal, 4)
+                    }
+                    
                     // 4 Kartu Breakdown Skor
                     Text("Breakdown Skor AI")
                         .font(.headline)

@@ -195,6 +195,19 @@ async def analisis_kondisi_pasar(state: ScoringState) -> dict[str, Any]:
         logger.error(f"❌ Gagal baca data makro: {type(e).__name__}: {e}")
         kondisi["catatan"].append(f"Data makro tidak tersedia: {e}")
 
+    # Hentikan seluruh pipeline jika data makro kosong sama sekali (Kasus 4)
+    if not kondisi["makro_terbaru"]:
+        msg = "Data makro kosong sama sekali di database! Seluruh proses scoring dihentikan."
+        logger.critical(f"🚨 {msg}")
+        import backend.system_notifier as notifier
+        notifier.report_error(
+            source="scoring_agent",
+            message=msg,
+            level="CRITICAL",
+            auto_open_browser=True
+        )
+        raise RuntimeError(msg)
+
     # ─── Langkah 2: Cek volatilitas ───
     kurs_data = kondisi["makro_terbaru"].get("kurs_usd_idr", {})
     ihsg_data = kondisi["makro_terbaru"].get("ihsg", {})
@@ -577,6 +590,174 @@ def _skor_risiko(
     return round(max(0.0, min(100.0, skor)), 2)
 
 
+async def scrape_and_index_news_for_emiten(kode: str) -> None:
+    """
+    Melakukan scraping berita terupdate untuk emiten tertentu secara real-time,
+    menganalisis sentimennya dengan LLM (Qwen), menyimpannya ke database (PostgreSQL),
+    dan meng-index-nya ke ChromaDB (RAG).
+    
+    Dirancang untuk berjalan di background agar tidak memblock proses scoring utama.
+    """
+    logger.info(f"🔍 [On-Demand Scraping] Memulai pencarian berita segar untuk {kode}...")
+    try:
+        from backend.data.collectors.berita_collector import collect_berita
+        from backend.data.preprocessors.data_cleaner import clean_berita, hitung_sentimen_qwen
+        from backend.rag.indexer import index_batch_berita
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        # 1. Scraping berita (hari_terakhir=7 untuk cakupan mingguan)
+        raw_berita = await collect_berita(kode, hari_terakhir=7)
+        if not raw_berita:
+            logger.warning(f"⚠️ [On-Demand Scraping] Tidak menemukan berita baru untuk {kode} di internet.")
+            return
+
+        logger.info(f"📰 [On-Demand Scraping] Ditemukan {len(raw_berita)} berita mentah untuk {kode}. Memproses...")
+
+        saved_berita_list = []
+        async with async_session() as session:
+            for item in raw_berita:
+                try:
+                    cleaned = clean_berita(item)
+                    sentimen_text = cleaned.get("isi_berita") or cleaned["judul"]
+                    # Hitung sentimen
+                    cleaned["skor_sentimen"] = await hitung_sentimen_qwen(sentimen_text)
+
+                    # Upsert to PostgreSQL
+                    stmt = pg_insert(Berita).values(
+                        kode_saham=cleaned["kode_saham"],
+                        judul=cleaned["judul"],
+                        url=cleaned["url"],
+                        sumber=cleaned["sumber"],
+                        tanggal_publish=cleaned["tanggal_publish"],
+                        skor_sentimen=cleaned["skor_sentimen"],
+                        isi_berita=cleaned.get("isi_berita"),
+                        sudah_diembedding=False
+                    )
+                    stmt = stmt.on_conflict_do_nothing(index_elements=["url"])
+                    res = await session.execute(stmt)
+                    if res.rowcount > 0:
+                        saved_berita_list.append(cleaned)
+                except Exception as e:
+                    logger.error(f"❌ [On-Demand Scraping] Gagal memproses berita '{item.get('judul', '')[:30]}': {e}")
+            await session.commit()
+
+        if saved_berita_list:
+            logger.info(f"💾 [On-Demand Scraping] {len(saved_berita_list)} berita baru disimpan ke PostgreSQL. Melakukan embedding...")
+            # Ambil berita yang baru disimpan untuk di-embed
+            async with async_session() as session:
+                stmt = select(Berita).where(
+                    Berita.kode_saham == kode,
+                    Berita.sudah_diembedding == False
+                )
+                res = await session.execute(stmt)
+                unembedded = res.scalars().all()
+
+                if unembedded:
+                    berita_dict_list = []
+                    for n in unembedded:
+                        berita_dict_list.append({
+                            "id": n.id,
+                            "kode_saham": n.kode_saham,
+                            "judul": n.judul,
+                            "url": n.url,
+                            "sumber": n.sumber,
+                            "tanggal_publish": n.tanggal_publish,
+                            "isi_berita": n.isi_berita,
+                        })
+                    stats = await index_batch_berita(berita_dict_list)
+                    if stats["berhasil"] > 0:
+                        success_urls = [n["url"] for n in berita_dict_list]
+                        for n in unembedded:
+                            if n.url in success_urls:
+                                n.sudah_diembedding = True
+                        await session.commit()
+                        logger.info(f"✅ [On-Demand Scraping] Embedding selesai: {stats['berhasil']} berita ter-index ke ChromaDB.")
+        
+        logger.info(f"✅ [On-Demand Scraping] Selesai mengambil berita untuk {kode}.")
+
+    except Exception as e:
+        logger.error(f"❌ [On-Demand Scraping] Gagal menjalankan real-time scraping berita untuk {kode}: {e}")
+
+
+async def scrape_and_save_fundamental_for_emiten(kode: str) -> dict[str, Any] | None:
+    """
+    Melakukan scraping data fundamental secara real-time untuk emiten tertentu
+    dari Yahoo Finance + XBRL IDX, lalu menyimpannya ke database PostgreSQL.
+    """
+    logger.info(f"🔍 [On-Demand Fundamental] Mengambil data fundamental baru untuk {kode}...")
+    try:
+        from backend.data.collectors.fundamental_collector import collect_fundamental
+        from backend.data.collectors.xbrl_collector import collect_xbrl_fundamental
+        from backend.data.preprocessors.data_cleaner import normalize_fundamental
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        # 1. Fetch dari Yahoo Finance
+        raw_list = await collect_fundamental([kode])
+        if not raw_list:
+            logger.warning(f"⚠️ [On-Demand Fundamental] Yahoo Finance tidak mengembalikan data untuk {kode}")
+            return None
+        
+        item = raw_list[0]
+
+        # 2. Fetch dari XBRL IDX
+        try:
+            xbrl_data = await collect_xbrl_fundamental(kode)
+            if xbrl_data:
+                item["roe"] = xbrl_data.get("roe")
+                item["eps"] = xbrl_data.get("eps")
+                item["der"] = xbrl_data.get("der")
+                
+                harga = item.get("harga_terakhir")
+                if harga is not None and item["eps"] and item["eps"] != 0:
+                    item["pe_ratio"] = round(harga / item["eps"], 2)
+                    if item["roe"] is not None:
+                        item["pbv"] = round(item["pe_ratio"] * (item["roe"] / 100.0), 2)
+        except Exception as ex:
+            logger.warning(f"⚠️ [On-Demand Fundamental] Gagal mengambil XBRL untuk {kode}: {ex}")
+
+        # 3. Normalisasi
+        cleaned = normalize_fundamental(item)
+
+        # 4. Simpan ke database
+        async with async_session() as session:
+            stmt = pg_insert(Fundamental).values(
+                kode_saham=cleaned["kode_saham"],
+                tanggal=cleaned["tanggal"],
+                harga_terakhir=cleaned["harga_terakhir"],
+                volume=cleaned["volume"],
+                roe=cleaned["roe"],
+                eps=cleaned["eps"],
+                pbv=cleaned["pbv"],
+                der=cleaned["der"],
+                market_cap=cleaned["market_cap"],
+                pe_ratio=cleaned["pe_ratio"],
+                dividend_yield=cleaned["dividend_yield"]
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["kode_saham", "tanggal"],
+                set_={
+                    "harga_terakhir": stmt.excluded.harga_terakhir,
+                    "volume": stmt.excluded.volume,
+                    "roe": stmt.excluded.roe,
+                    "eps": stmt.excluded.eps,
+                    "pbv": stmt.excluded.pbv,
+                    "der": stmt.excluded.der,
+                    "market_cap": stmt.excluded.market_cap,
+                    "pe_ratio": stmt.excluded.pe_ratio,
+                    "dividend_yield": stmt.excluded.dividend_yield,
+                }
+            )
+            await session.execute(stmt)
+            await session.commit()
+
+        logger.info(f"✅ [On-Demand Fundamental] Berhasil memperbarui data fundamental untuk {kode}")
+        return cleaned
+
+    except Exception as e:
+        logger.error(f"❌ [On-Demand Fundamental] Gagal mengambil data untuk {kode}: {e}")
+        return None
+
+
 async def hitung_skor(state: ScoringState) -> dict[str, Any]:
     """
     Hitung skor per komponen untuk setiap saham dan kalkulasi skor total.
@@ -670,6 +851,68 @@ async def hitung_skor(state: ScoringState) -> dict[str, Any]:
                 # Cek apakah ada berita sangat negatif (skor < -0.7)
                 if any(s < -0.7 for s in berita_sentimen):
                     ada_berita_negatif_besar = True
+
+            # ─── Validasi data fundamental kosong (Kasus 4) ───
+            if not data_fundamental or (
+                data_fundamental.get("roe") is None
+                and data_fundamental.get("pbv") is None
+                and data_fundamental.get("der") is None
+                and data_fundamental.get("eps") is None
+            ):
+                msg_fund = f"Data fundamental untuk emiten {kode} kosong di database. Mencoba mengambil secara real-time..."
+                logger.warning(f"⚠️ {msg_fund}")
+                import backend.system_notifier as notifier
+                notifier.report_error(
+                    source="scoring_agent",
+                    message=msg_fund,
+                    level="ERROR",
+                    auto_open_browser=False
+                )
+
+                # Ambil secara real-time
+                cleaned_fund = await scrape_and_save_fundamental_for_emiten(kode)
+                
+                if cleaned_fund and (
+                    cleaned_fund.get("roe") is not None
+                    or cleaned_fund.get("pbv") is not None
+                    or cleaned_fund.get("der") is not None
+                    or cleaned_fund.get("eps") is not None
+                ):
+                    data_fundamental = cleaned_fund
+                    volume = cleaned_fund.get("volume")
+                    logger.info(f"✅ Berhasil memulihkan data fundamental {kode} secara real-time.")
+                else:
+                    msg_fail = f"Gagal mengambil data fundamental {kode} secara real-time. Menggunakan nilai netral agar emiten tidak terdelist."
+                    logger.error(f"❌ {msg_fail}")
+                    notifier.report_error(
+                        source="scoring_agent",
+                        message=msg_fail,
+                        level="ERROR",
+                        auto_open_browser=False
+                    )
+                    data_fundamental = {
+                        "roe": None,
+                        "eps": None,
+                        "pbv": None,
+                        "der": None,
+                        "pe_ratio": None,
+                        "dividend_yield": None,
+                        "harga": None,
+                        "market_cap": None
+                    }
+
+            # ─── Cek berita kosong dan picu on-demand scraping (Kasus 4) ───
+            if not berita_sentimen:
+                msg_news = f"Berita untuk emiten {kode} kosong di database. Memicu pencarian berita di latar belakang..."
+                logger.warning(f"⚠️ {msg_news}")
+                import backend.system_notifier as notifier
+                notifier.report_error(
+                    source="scoring_agent",
+                    message=msg_news,
+                    level="ERROR",
+                    auto_open_browser=False
+                )
+                asyncio.create_task(scrape_and_index_news_for_emiten(kode))
 
             # ─── Hitung skor per komponen ───
             s_fundamental = _skor_fundamental(data_fundamental)
@@ -845,8 +1088,20 @@ async def generate_alasan(state: ScoringState) -> dict[str, Any]:
     skor_per_saham = state["skor_per_saham"]
     top_k = settings.top_k_saham  # Default: 10
 
-    # Ambil top K saham
-    top_saham = skor_per_saham[:top_k]
+    # Menyaring emiten dengan data_terbatas == True dari Top K rekomendasi utama (Kasus 4)
+    kandidat_rekomendasi = [s for s in skor_per_saham if not s.get("data_terbatas")]
+    
+    # Fallback jika emiten dengan data lengkap sangat sedikit, kita campur agar rekomendasi tetap ada
+    if len(kandidat_rekomendasi) < top_k:
+        logger.warning(
+            f"⚠️ Hanya ada {len(kandidat_rekomendasi)} saham dengan data lengkap. "
+            f"Menyertakan saham dengan data terbatas sebagai fallback."
+        )
+        saham_terbatas = [s for s in skor_per_saham if s.get("data_terbatas")]
+        kandidat_rekomendasi.extend(saham_terbatas)
+
+    # Ambil top K saham dari hasil filter
+    top_saham = kandidat_rekomendasi[:top_k]
     hasil_final: list[dict[str, Any]] = []
 
     # Siapkan LLM

@@ -1,0 +1,55 @@
+[VM] 2026-05-13 08:54:27 [info] startVM called for <home>/Library/Application Support/Claude/vm_bundles/claudevm.bundle with memoryGB=4 cpuCount=auto networkMode=gvisor
+[VM] 2026-05-13 08:54:27 [info] VM startup step: stop_existing_vm started
+[VM] 2026-05-13 08:54:27 [info] VM startup step: stop_existing_vm completed
+[VM] 2026-05-13 08:54:27 [info] Using bundle at <home>/Library/Application Support/Claude/vm_bundles/claudevm.bundle
+[VM] 2026-05-13 08:54:27 [info] VM startup step: create_vm_config started
+[VM] 2026-05-13 08:54:28 [info] Creating new session data disk (10GB) at <home>/Library/Application Support/Claude/vm_bundles/claudevm.bundle/sessiondata.img
+[VM] 2026-05-13 08:54:28 [info] Disk image created: <home>/Library/Application Support/Claude/vm_bundles/claudevm.bundle/sessiondata.img (10GiB, ASIF)
+[VM] 2026-05-13 08:54:28 [info] Found smol-bin image at /Applications/Claude.app/Contents/Resources/smol-bin.arm64.img
+[VM] 2026-05-13 08:54:28 [info] Added smol-bin.img as USB mass storage device
+[VM] 2026-05-13 08:54:28 [info] VM startup step: create_network started
+[VM] 2026-05-13 08:54:28 [info] Using gvisor user-mode networking
+[VM] 2026-05-13 08:54:28 [info] Created gvisor network socket pair (vm=44, go=72)
+[VM] 2026-05-13 08:54:28 [info] Starting gvisor usernet on fd=72 mac=<ip>
+[VM] 2026-05-13 08:54:28 [info] Gvisor usernet started
+[VM] 2026-05-13 08:54:28 [info] VM startup step: create_network completed
+[VM] 2026-05-13 08:54:28 [info] Console device attached: port 0 (coworkd/hvc0), port 1 (kernel boot/hvc1)
+[VM] 2026-05-13 08:54:28 [info] Configuration created:
+[VM] 2026-05-13 08:54:28 [info]   - CPUs: 4
+[VM] 2026-05-13 08:54:28 [info]   - Memory: 4GB
+[VM] 2026-05-13 08:54:28 [info]   - Boot: EFI (GRUB)
+[VM] 2026-05-13 08:54:28 [info]   - Rootfs: <home>/Library/Application Support/Claude/vm_bundles/claudevm.bundle/rootfs.img
+[VM] 2026-05-13 08:54:28 [info]   - Session data: <home>/Library/Application Support/Claude/vm_bundles/claudevm.bundle/sessiondata.img
+[VM] 2026-05-13 08:54:28 [info]   - MAC address: <ip>
+[VM] 2026-05-13 08:54:28 [info]   - Shared directory: /
+[VM] 2026-05-13 08:54:28 [info] VM startup step: create_vm_config completed
+[VM] 2026-05-13 08:54:28 [info] VM startup step: vm_boot started
+[VM] 2026-05-13 08:54:28 [info] Linux VM started successfully
+[VM] 2026-05-13 08:54:28 [info] VM startup step: vm_boot completed
+[VM] 2026-05-13 08:54:28 [info] VM startup step: guest_vsock_connect started
+[VM] 2026-05-13 08:54:37 [info] Guest connected
+[VM] 2026-05-13 08:54:37 [info] VM startup step: guest_vsock_connect completed
+[VM] 2026-05-13 08:54:37 [info] VM startup step: static_ip_assignment started
+[VM] 2026-05-13 08:54:37 [info] Sent static IP assignment: ip=<ip>/24 gateway=<ip>
+[VM] 2026-05-13 08:54:37 [info] VM startup step: static_ip_assignment completed
+[VM] 2026-05-13 08:54:37 [info] VM startup step: guest_ready started
+[VM] 2026-05-13 08:54:37 [info] Network status: CONNECTED
+[VM] 2026-05-13 08:54:37 [info] Guest ready
+[VM] 2026-05-13 08:54:37 [info] VM startup step: guest_ready completed
+[VM] 2026-05-13 08:54:37 [info] VM startup step: install_ca_certificates started
+[VM] 2026-05-13 08:54:37 [info] Forwarding 6 trusted CA certificates to guest
+[VM] 2026-05-13 08:54:38 [info] Installed 6 host CA certificates in guest
+[VM] 2026-05-13 08:54:38 [info] Guest installed 6 CA certificates
+[VM] 2026-05-13 08:54:38 [info] VM startup step: install_ca_certificates completed
+[VM] 2026-05-13 08:54:38 [info] SDK installed successfully: version=2.1.138
+[VM] 2026-05-13 08:54:38 [info] SDK installed: version=2.1.138
+[VM] 2026-05-13 08:54:38 [info] API reachability: REACHABLE
+[VM] 2026-05-18 08:24:15 [info] SDK installed successfully: version=2.1.138
+[VM] 2026-05-18 08:24:15 [info] SDK installed: version=2.1.138
+[VM] 2026-05-19 23:20:54 [info] Stopping VM (isAppQuit: true)...
+[VM] 2026-05-19 23:20:54 [info] VM requestStop() completed
+[VM] 2026-05-19 23:20:58 [info] Guest did stop
+[VM] 2026-05-19 23:20:58 [info] VM reached stopped state
+[VM] 2026-05-19 23:20:58 [info] 🎈 [Balloon] Monitoring stopped
+[VM] 2026-05-19 23:20:58 [info] Gvisor network attachment stopped
+[VM] 2026-05-19 23:20:58 [info] VM stopped successfully

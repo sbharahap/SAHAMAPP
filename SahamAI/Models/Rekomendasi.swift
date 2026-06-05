@@ -62,6 +62,8 @@ struct RekomendasiDetail: Codable {
     let rekomendasi: String
     let confidence: Double
     let alasan: String?
+    let dataTerbatas: Bool?
+    let catatanData: String?
     
     enum CodingKeys: String, CodingKey {
         case kodeSaham = "kode_saham"
@@ -79,5 +81,7 @@ struct RekomendasiDetail: Codable {
         case rekomendasi
         case confidence
         case alasan
+        case dataTerbatas = "data_terbatas"
+        case catatanData = "catatan_data"
     }
 }

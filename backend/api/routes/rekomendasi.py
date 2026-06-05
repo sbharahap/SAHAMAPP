@@ -148,6 +148,8 @@ async def get_rekomendasi_saham(
             "rekomendasi": scoring_obj.rekomendasi.value,
             "confidence": scoring_obj.confidence,
             "alasan": scoring_obj.alasan,
+            "data_terbatas": scoring_obj.confidence < 0.4,
+            "catatan_data": "Data fundamental atau berita pendukung kurang lengkap di database." if scoring_obj.confidence < 0.4 else "",
         }
 
     except HTTPException:

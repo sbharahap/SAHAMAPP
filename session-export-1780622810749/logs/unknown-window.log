@@ -1,0 +1,26 @@
+2025-11-12 01:20:32 [warn] Error with Permissions-Policy header: Unrecognized feature: 'web-share'.
+2025-11-12 01:20:33 [warn] Error with Permissions-Policy header: Unrecognized feature: 'web-share'.
+2025-11-12 01:20:35 [error] Uncaught (in promise) Error: Error invoking remote method '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.hybrid_$_DesktopIntl_$_requestLocaleChange': Error: No handler registered for '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.hybrid_$_DesktopIntl_$_requestLocaleChange'
+2025-11-12 01:20:35 [error] Uncaught (in promise) Error: Error invoking remote method '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_Account_$_setAccountDetails': Error: No handler registered for '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_Account_$_setAccountDetails'
+2025-11-12 01:20:35 [error] Uncaught (in promise) Error: Error invoking remote method '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_QuickEntry_$_setRecentChats': Error: No handler registered for '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_QuickEntry_$_setRecentChats'
+2025-11-12 01:20:35 [error] Uncaught (in promise) Error: Error invoking remote method '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_WindowControl_$_setThemeMode': Error: No handler registered for '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_WindowControl_$_setThemeMode'
+2025-11-12 01:20:38 [error] Uncaught (in promise) Error: Error invoking remote method '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_WindowControl_$_resize': Error: No handler registered for '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_WindowControl_$_resize'
+2025-11-12 01:20:38 [error] Uncaught (in promise) Error: Error invoking remote method '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_WindowControl_$_focus': Error: No handler registered for '$eipc_message$_546fecde-1a9b-4a87-8ef0-815e694de2ee_$_claude.web_$_WindowControl_$_focus'
+2025-11-12 01:20:38 [warn] [Intercom] The App ID in your code snippet has not been set. Set it to your App ID found in settings to complete installation: https://app.intercom.com/a/apps/_/settings/web
+2025-11-12 01:20:38 [warn] [Intercom] The App ID in your code snippet has not been set. Set it to your App ID found in settings to complete installation: https://app.intercom.com/a/apps/_/settings/web
+2025-11-12 01:21:00 [warn] Error with Permissions-Policy header: Unrecognized feature: 'web-share'.
+2025-11-12 01:21:01 [warn] [Intercom] The App ID in your code snippet has not been set. Set it to your App ID found in settings to complete installation: https://app.intercom.com/a/apps/_/settings/web
+2025-11-12 01:22:05 [error]  ERROR  [Statsig] Failed to parse EvaluationResponse
+2025-11-12 01:22:09 [error] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.
+
+If you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.
+
+For more information, see https://radix-ui.com/primitives/docs/components/dialog
+2025-11-12 01:22:09 [warn] Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+2025-11-12 12:43:46 [error]  ERROR  [Statsig] A networking error occurred during POST request to https://statsig.anthropic.com/v1/rgstr?k=<blob>&st=javascript-client-react&sv=3.12.1&t=1762925747724&sid=1701a0f7-7a18-48a9-b927-b4681e2b8a53&ec=5. TypeError: Failed to fetch (statsig.anthropic.com) TypeError: Failed to fetch (statsig.anthropic.com)
+2025-11-12 12:43:46 [warn]   WARN  [Statsig] Failed to flush events.
+2025-11-12 12:44:43 [error]  ERROR  [Statsig] A networking error occurred during POST request to https://statsig.anthropic.com/v1/rgstr?k=<blob>&st=javascript-client-react&sv=3.12.1&t=1762926283786&sid=1701a0f7-7a18-48a9-b927-b4681e2b8a53&ec=5. TypeError: Failed to fetch (statsig.anthropic.com) TypeError: Failed to fetch (statsig.anthropic.com)
+2025-11-12 12:44:43 [warn]   WARN  [Statsig] Failed to flush events.
+2025-11-12 23:45:18 [error] Access to fetch at 'https://statsig.anthropic.com/v1/rgstr?k=<blob>&st=javascript-client-react&sv=3.12.1&t=1762965872600&sid=015adedb-834b-4a77-ae2b-82003df7c05a&ec=29' from origin 'https://claude.ai' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2025-11-13 00:00:43 [error]  ERROR  [Statsig] A networking error occurred during POST request to https://statsig.anthropic.com/v1/rgstr?k=<blob>&st=javascript-client-react&sv=3.12.1&t=1762966832274&sid=015adedb-834b-4a77-ae2b-82003df7c05a&ec=29. Timeout of 10000ms expired. Timeout of 10000ms expired.
+2025-11-13 00:00:43 [warn]   WARN  [Statsig] Failed to flush events.

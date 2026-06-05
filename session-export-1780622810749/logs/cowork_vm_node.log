@@ -1,0 +1,71 @@
+2026-05-13 08:49:13 [info] [Bundle:status] rootfs.img missing
+2026-05-13 08:49:13 [info] [VM] Loading @ant/claude-swift module...
+2026-05-13 08:49:13 [info] [VM] Module loaded successfully
+2026-05-13 08:49:35 [info] [Bundle:status] rootfs.img missing
+2026-05-13 08:49:35 [info] [Bundle:status] rootfs.img missing
+2026-05-13 08:49:35 [info] [warm] No warm file found for rootfs.img at current version
+2026-05-13 08:49:35 [info] [cache] No cached compressed file for rootfs.img
+2026-05-13 08:49:35 [info] rootfs.img not found, downloading...
+2026-05-13 08:49:35 [info] Downloading rootfs.img...
+2026-05-13 08:49:35 [info] [KernelBugMonitor] State reset
+2026-05-13 08:49:35 [info] [VM:start] Beginning startup, bundlePath=<home>/Library/Application Support/Claude/vm_bundles/claudevm.bundle
+2026-05-13 08:49:35 [info] [VM:start] Bundle version: <blob>
+2026-05-13 08:49:35 [info] [VM:start] VM instance ID: 43a66e56-8f31-44e2-97e5-75aa554065d4
+2026-05-13 08:49:35 [info] [VM:steps] download_and_sdk_prepare started
+2026-05-13 08:49:35 [info] [downloadVM] Download already in progress, waiting...
+2026-05-13 08:54:27 [info] rootfs.img.zst checksum validated
+2026-05-13 08:54:27 [info] [downloadVM] Saved compressed rootfs.img to cache
+2026-05-13 08:54:27 [info] All files ready in <home>/Library/Application Support/Claude/vm_bundles/claudevm.bundle
+2026-05-13 08:54:27 [info] [VM:steps] download_and_sdk_prepare completed (292287ms)
+2026-05-13 08:54:27 [info] [VM:steps] load_swift_api started
+2026-05-13 08:54:27 [info] [VM:steps] load_swift_api completed (0ms)
+2026-05-13 08:54:27 [info] [Callbacks] Initializing VM event callbacks...
+2026-05-13 08:54:27 [info] [Callbacks] VM event callbacks initialized
+2026-05-13 08:54:28 [info] [VM:steps] stop_existing_vm started
+2026-05-13 08:54:28 [info] [VM:steps] stop_existing_vm completed (0ms)
+2026-05-13 08:54:28 [info] [VM:steps] create_vm_config started
+2026-05-13 08:54:28 [info] [VM:steps] create_network started
+2026-05-13 08:54:28 [info] [VM:steps] create_network completed (0ms)
+2026-05-13 08:54:28 [info] [VM:steps] create_vm_config completed (0ms)
+2026-05-13 08:54:28 [info] [VM:steps] vm_boot started
+2026-05-13 08:54:28 [info] [VM:steps] vm_boot completed (141ms)
+2026-05-13 08:54:28 [info] [VM:steps] guest_vsock_connect started
+2026-05-13 08:54:37 [info] [VM:steps] guest_vsock_connect completed (8837ms)
+2026-05-13 08:54:37 [info] [VM:steps] static_ip_assignment started
+2026-05-13 08:54:37 [info] [VM:steps] static_ip_assignment completed (0ms)
+2026-05-13 08:54:37 [info] [VM:steps] guest_ready started
+2026-05-13 08:54:37 [info] [VM] Network status: CONNECTED
+2026-05-13 08:54:37 [info] [VM] Guest connection changed: true
+2026-05-13 08:54:37 [info] [VM:steps] guest_ready completed (1ms)
+2026-05-13 08:54:37 [info] [VM:steps] install_ca_certificates started
+2026-05-13 08:54:37 [info] [VM:steps] sdk_install started
+2026-05-13 08:54:37 [info] [postConnect] Installing SDK: subpath=Users/virafitriyani/Library/Application Support/Claude/claude-code-vm, version=2.1.138
+2026-05-13 08:54:38 [info] [VM:steps] install_ca_certificates completed (0ms)
+2026-05-13 08:54:38 [info] [Keepalive] Starting (interval=2000ms)
+2026-05-13 08:54:38 [info] [VM:steps] sdk_install completed (0ms)
+2026-05-13 08:54:38 [info] [VM:start] Startup complete, total time: 302846ms
+2026-05-13 08:54:38 [info] [VM] API reachability: REACHABLE
+2026-05-16 04:33:21 [info] [warm] Fetching VM hash for version 1.7196.1
+2026-05-16 04:33:21 [info] [warm] VM hash for version 1.7196.1: <blob>
+2026-05-16 04:33:21 [info] [warm] VM SHA matches current version, skipping
+2026-05-18 08:24:15 [info] [startVM] VM already connected
+2026-05-18 08:24:15 [info] [postConnect] Installing SDK: subpath=Users/virafitriyani/Library/Application Support/Claude/claude-code-vm, version=2.1.138
+2026-05-18 08:24:15 [warn] [Keepalive] Already running
+2026-05-19 23:20:54 [info] [VM:shutdown] App quit, stopping VM (instance: 43a66e56-8f31-44e2-97e5-75aa554065d4)...
+2026-05-19 23:20:54 [info] [Keepalive] Stopping
+2026-05-19 23:20:55 [info] [VM] Guest connection changed: false
+2026-05-19 23:20:55 [info] [VM] Guest disconnected during graceful quit, cleanly exiting 0 active processes
+2026-05-19 23:20:58 [warn] [VM] VM stopped
+2026-05-19 23:20:59 [info] [VM:shutdown] Completed in 4126ms
+2026-05-19 23:21:22 [info] [VM] Loading @ant/claude-swift module...
+2026-05-19 23:21:22 [info] [VM] Module loaded successfully
+2026-05-20 09:16:37 [info] [VM] Loading @ant/claude-swift module...
+2026-05-20 09:16:37 [info] [VM] Module loaded successfully
+2026-05-22 17:00:24 [info] [warm] Fetching VM hash for version 1.8555.0
+2026-05-22 17:00:25 [info] [warm] VM hash for version 1.8555.0: <blob>
+2026-05-22 17:00:25 [info] [warm] VM SHA matches current version, skipping
+2026-05-27 05:18:10 [info] [VM] Loading @ant/claude-swift module...
+2026-05-27 05:18:10 [info] [VM] Module loaded successfully
+2026-06-02 08:47:55 [info] [warm] Fetching VM hash for version 1.9659.2
+2026-06-02 08:47:55 [info] [warm] VM hash for version 1.9659.2: <blob>
+2026-06-02 08:47:55 [info] [warm] VM SHA matches current version, skipping
