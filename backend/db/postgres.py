@@ -94,9 +94,9 @@ class Base(AsyncAttrs, DeclarativeBase):
 
 class Rekomendasi(str, enum.Enum):
     """Tipe rekomendasi saham dari scoring engine."""
-    BUY = "BUY"
-    HOLD = "HOLD"
-    SELL = "SELL"
+    RECOMMENDED = "RECOMMENDED"
+    NEUTRAL = "NEUTRAL"
+    NEGATIVE = "NEGATIVE"
 
 
 # ============================================================

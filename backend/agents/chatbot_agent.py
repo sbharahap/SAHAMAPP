@@ -500,15 +500,29 @@ async def ambil_konteks(state: ChatState) -> dict[str, Any]:
                         saham_data["nama"] = saham_obj.nama_perusahaan
                         saham_data["sektor"] = saham_obj.sektor
 
-                    # Fundamental terbaru
+                    # Fundamental terbaru yang memiliki data rasio (roe tidak NULL)
                     stmt_fund = (
                         select(Fundamental)
-                        .where(Fundamental.kode_saham == kode)
+                        .where(
+                            Fundamental.kode_saham == kode,
+                            Fundamental.roe.is_not(None)
+                        )
                         .order_by(Fundamental.tanggal.desc())
                         .limit(1)
                     )
                     result = await session.execute(stmt_fund)
                     fund = result.scalar_one_or_none()
+
+                    # Fallback jika tidak ada data yang memiliki rasio
+                    if not fund:
+                        stmt_fund_fallback = (
+                            select(Fundamental)
+                            .where(Fundamental.kode_saham == kode)
+                            .order_by(Fundamental.tanggal.desc())
+                            .limit(1)
+                        )
+                        result_fallback = await session.execute(stmt_fund_fallback)
+                        fund = result_fallback.scalar_one_or_none()
                     if fund:
                         saham_data["fundamental"] = {
                             "harga": fund.harga_terakhir,
@@ -682,8 +696,8 @@ async def generate_jawaban(state: ChatState) -> dict[str, Any]:
         ),
         "umum": (
             "Jawab pertanyaan tentang pasar/sektor/ekonomi secara umum. "
-            "Jika data rekomendasi/top 10 tersedia di DATA SAHAM, sebutkan daftarnya "
-            "secara berurutan (dari rank #1 sampai #10) beserta skor total dan rekomendasinya (BUY/HOLD/SELL) "
+            "Jika data rekomendasi/top 20 tersedia di DATA SAHAM, sebutkan daftarnya "
+            "secara berurutan (dari rank #1 sampai #20) beserta skor total dan rekomendasinya (RECOMMENDED/NEUTRAL/NEGATIVE) "
             "secara padat dan informatif."
         ),
     }

@@ -47,13 +47,12 @@ async def get_rekomendasi_mingguan(
                     "message": "Belum ada hasil scoring mingguan di database."
                 }
 
-        # Query top 10 saham teratas di tanggal scoring tersebut
+        # Query saham teratas di tanggal scoring tersebut
         stmt = (
             select(ScoringMingguan, Saham.nama_perusahaan, Saham.sektor)
             .join(Saham, ScoringMingguan.kode_saham == Saham.kode)
             .where(ScoringMingguan.tanggal_scoring == tanggal)
             .order_by(ScoringMingguan.skor_total.desc())
-            .limit(settings.top_k_saham)
         )
         result = await db.execute(stmt)
         rows = result.all()

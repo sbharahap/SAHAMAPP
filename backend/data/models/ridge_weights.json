@@ -1,0 +1,32 @@
+{
+    "Normal / Sideways": {
+        "fundamental": 0.14,
+        "sektor": 0.1,
+        "trend": 0.1,
+        "risiko": 0.66
+    },
+    "Bull Market / Strong Uptrend": {
+        "fundamental": 0.1,
+        "sektor": 0.1,
+        "trend": 0.12,
+        "risiko": 0.68
+    },
+    "Bear Market / Strong Downtrend": {
+        "fundamental": 0.32,
+        "sektor": 0.1,
+        "trend": 0.1,
+        "risiko": 0.48
+    },
+    "Market Overbought / Correction Risk": {
+        "fundamental": 0.6,
+        "sektor": 0.1,
+        "trend": 0.2,
+        "risiko": 0.1
+    },
+    "Market Oversold / Rebound Potential": {
+        "fundamental": 0.11,
+        "sektor": 0.1,
+        "trend": 0.1,
+        "risiko": 0.69
+    }
+}

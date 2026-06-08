@@ -215,16 +215,10 @@ class Settings(BaseSettings):
     # Scoring Engine — Bobot Default
     # ================================================================
     score_weight_fundamental: float = Field(
-        default=0.30,
+        default=0.40,
         ge=0.0,
         le=1.0,
-        description="Bobot skor fundamental (default 30%)",
-    )
-    score_weight_sentimen: float = Field(
-        default=0.25,
-        ge=0.0,
-        le=1.0,
-        description="Bobot skor sentimen (default 25%)",
+        description="Bobot skor fundamental (default 40%)",
     )
     score_weight_sektor: float = Field(
         default=0.20,
@@ -233,16 +227,16 @@ class Settings(BaseSettings):
         description="Bobot skor sektor (default 20%)",
     )
     score_weight_makro: float = Field(
+        default=0.25,
+        ge=0.0,
+        le=1.0,
+        description="Bobot skor makroekonomi (default 25%)",
+    )
+    score_weight_risiko: float = Field(
         default=0.15,
         ge=0.0,
         le=1.0,
-        description="Bobot skor makroekonomi (default 15%)",
-    )
-    score_weight_risiko: float = Field(
-        default=0.10,
-        ge=0.0,
-        le=1.0,
-        description="Bobot skor risiko (default 10%)",
+        description="Bobot skor risiko (default 15%)",
     )
     top_k_saham: int = Field(
         default=10,
@@ -258,10 +252,9 @@ class Settings(BaseSettings):
         # Ambil semua bobot yang sudah di-parse
         data = info.data
         total = (
-            data.get("score_weight_fundamental", 0.30)
-            + data.get("score_weight_sentimen", 0.25)
+            data.get("score_weight_fundamental", 0.40)
             + data.get("score_weight_sektor", 0.20)
-            + data.get("score_weight_makro", 0.15)
+            + data.get("score_weight_makro", 0.25)
             + v  # score_weight_risiko
         )
         if abs(total - 1.0) > 0.01:
@@ -334,7 +327,7 @@ class Settings(BaseSettings):
         """
         return {
             "fundamental": self.score_weight_fundamental,
-            "sentimen": self.score_weight_sentimen,
+            "sentimen": 0.0,
             "sektor": self.score_weight_sektor,
             "makro": self.score_weight_makro,
             "risiko": self.score_weight_risiko,

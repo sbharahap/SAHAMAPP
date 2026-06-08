@@ -44,8 +44,9 @@ class NetworkManager {
         
         let candidates = [
             "http://MacBook-Pro-Satria.local:8080", // mDNS Bonjour — otomatis di jaringan apapun ✅
+            "http://172.20.10.2:8080",               // iPhone Personal Hotspot (IP Mac di hotspot) ✅
             "http://192.168.100.21:8080",            // Static IP rumah
-            "http://10.67.49.69:8080",               // Static IP kantor (di-set manual di System Settings)
+            "http://10.67.49.207:8080",              // Static IP kantor
             "http://localhost:8080"                  // iOS Simulator
         ]
         
