@@ -747,11 +747,16 @@ PERTANYAAN USER:
             f"confidence={confidence:.2f})"
         )
 
-        # RAG Triad Evaluasi (Kasus 6)
+        # RAG Triad Evaluasi (fire-and-forget, batch_id="live" untuk tracking)
         if dokumen:
             contexts_list = [doc.get("teks", "") for doc in dokumen[:7]]
             from backend.rag.evaluator import evaluasi_rag_triad
-            asyncio.create_task(evaluasi_rag_triad(pertanyaan, contexts_list, jawaban))
+            asyncio.create_task(
+                evaluasi_rag_triad(
+                    pertanyaan, contexts_list, jawaban,
+                    batch_id="live", simpan_ke_db=True,
+                )
+            )
 
         return {
             "jawaban_draft": jawaban,

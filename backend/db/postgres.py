@@ -680,6 +680,110 @@ class Alert(Base):
 
 
 # ============================================================
+# Tabel 7: RAGEvaluation — Hasil Evaluasi RAG Triad
+# ============================================================
+
+class RAGEvaluation(Base):
+    """
+    Hasil evaluasi RAG Triad (Context Relevance, Groundedness, Answer Relevance).
+
+    Setiap baris merepresentasikan satu evaluasi terhadap interaksi chatbot RAG.
+    Digunakan untuk mengukur kualitas pipeline RAG secara sistematis.
+    """
+
+    __tablename__ = "rag_evaluation"
+    __table_args__ = (
+        Index("ix_rag_eval_batch_id", "batch_id"),
+        Index("ix_rag_eval_created_at", "created_at"),
+        CheckConstraint(
+            "context_relevance >= 1.0 AND context_relevance <= 5.0",
+            name="ck_rag_eval_cr_range",
+        ),
+        CheckConstraint(
+            "groundedness >= 1.0 AND groundedness <= 5.0",
+            name="ck_rag_eval_g_range",
+        ),
+        CheckConstraint(
+            "answer_relevance >= 1.0 AND answer_relevance <= 5.0",
+            name="ck_rag_eval_ar_range",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+    batch_id: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="ID batch evaluasi (untuk mengelompokkan satu run evaluasi)",
+    )
+    query: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Pertanyaan user yang dievaluasi",
+    )
+    response_text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Jawaban chatbot yang dievaluasi",
+    )
+    num_contexts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Jumlah dokumen konteks yang digunakan",
+    )
+
+    context_relevance: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        comment="Skor Context Relevance (1-5)",
+    )
+    context_relevance_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Alasan skor Context Relevance",
+    )
+    groundedness: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        comment="Skor Groundedness (1-5)",
+    )
+    groundedness_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Alasan skor Groundedness",
+    )
+    answer_relevance: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        comment="Skor Answer Relevance (1-5)",
+    )
+    answer_relevance_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Alasan skor Answer Relevance",
+    )
+    avg_triad_score: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        comment="Rata-rata ketiga skor triad",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<RAGEvaluation(id={self.id}, batch='{self.batch_id}', "
+            f"avg={self.avg_triad_score:.2f})>"
+        )
+
+
+# ============================================================
 # Dependency Injection Helper
 # ============================================================
 

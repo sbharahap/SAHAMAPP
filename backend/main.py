@@ -43,6 +43,7 @@ import backend.system_notifier as notifier
 from backend.api.routes.rekomendasi import router as rekomendasi_router
 from backend.api.routes.chatbot import router as chatbot_router
 from backend.api.routes.data import router as data_router
+from backend.api.routes.rag_eval import router as rag_eval_router
 
 _WIB = timezone(timedelta(hours=7))
 
@@ -148,11 +149,13 @@ app.add_middleware(
 app.include_router(rekomendasi_router, prefix="/api")
 app.include_router(chatbot_router, prefix="/api")
 app.include_router(data_router, prefix="/api")
+app.include_router(rag_eval_router, prefix="/api")
 
 # Register routers under root prefix as well to support SwiftUI and direct curl calls
 app.include_router(rekomendasi_router)
 app.include_router(chatbot_router)
 app.include_router(data_router)
+app.include_router(rag_eval_router)
 
 
 # ============================================================
