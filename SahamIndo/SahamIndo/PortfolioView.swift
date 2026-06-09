@@ -294,7 +294,9 @@ struct PortfolioView: View {
                                 }
                             }
                             .padding(.vertical, 10)
-                            
+                            .contentShape(Rectangle())
+                            .onTapGesture { router.push(.stockDetail(item)) }
+
                             if item.symbol != activePositions.last?.symbol {
                                 Divider().background(Color.primary.opacity(0.08))
                             }
