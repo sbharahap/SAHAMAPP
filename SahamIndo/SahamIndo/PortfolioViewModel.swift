@@ -154,6 +154,9 @@ final class PortfolioViewModel: ObservableObject {
                     cashBalance -= costPaid * (1.0 + fee_buy)
                     holdings[idx].quantity += qtyToBuy
                     holdings[idx].totalCostBasis += costPaid
+                    if holdings[idx].purchaseDate == nil {
+                        holdings[idx].purchaseDate = Date()
+                    }
                 }
             } else if diff < 0 && currentQty > 0 {
                 // Sell excess to reach 20% weight
@@ -207,8 +210,11 @@ final class PortfolioViewModel: ObservableObject {
         if let idx = holdings.firstIndex(where: { $0.symbol == symbol }) {
             holdings[idx].quantity       += qty
             holdings[idx].totalCostBasis += cost
+            if holdings[idx].purchaseDate == nil {
+                holdings[idx].purchaseDate = Date()
+            }
         } else {
-            holdings.append(Holding(symbol: symbol, quantity: qty, totalCostBasis: cost))
+            holdings.append(Holding(symbol: symbol, quantity: qty, totalCostBasis: cost, purchaseDate: Date()))
         }
         
         saveHoldings()
@@ -246,12 +252,12 @@ final class PortfolioViewModel: ObservableObject {
     }
 
     func resetPortfolio() {
-        UserDefaults.standard.removeObject(forKey: storageKey)
-        UserDefaults.standard.removeObject(forKey: cashKey)
-        UserDefaults.standard.removeObject(forKey: depositedKey)
-        holdings = defaultHoldings()
-        cashBalance = 50_000_000.0
-        totalDepositedCash = 50_000_000.0
+        for i in 0..<holdings.count {
+            holdings[i].quantity       = 0
+            holdings[i].totalCostBasis = 0
+            holdings[i].purchaseDate   = nil
+        }
+        saveHoldings()
         Task { await fetchData() }
     }
 

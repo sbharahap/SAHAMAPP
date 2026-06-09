@@ -48,6 +48,9 @@ struct HomeNavigationView: View {
                     case .stockDetail(let item):
                         StockDetailView(item: item)
                             .toolbar(.hidden, for: .tabBar)
+                    case .portfolioDetail(let item):
+                        DetailPortfolioPerEmitentView(item: item)
+                            .toolbar(.hidden, for: .tabBar)
                     }
                 }
         }
@@ -65,6 +68,9 @@ struct PortfolioNavigationView: View {
                     switch route {
                     case .stockDetail(let item):
                         StockDetailView(item: item)
+                            .toolbar(.hidden, for: .tabBar)
+                    case .portfolioDetail(let item):
+                        DetailPortfolioPerEmitentView(item: item)
                             .toolbar(.hidden, for: .tabBar)
                     }
                 }

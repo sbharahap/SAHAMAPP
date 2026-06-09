@@ -23,12 +23,14 @@ struct Holding: Identifiable, Codable, Equatable {
     var symbol:         String
     var quantity:       Double  // lembar
     var totalCostBasis: Double  // IDR
+    var purchaseDate:   Date?   // tanggal pertama beli
 
-    init(id: UUID = UUID(), symbol: String, quantity: Double, totalCostBasis: Double) {
+    init(id: UUID = UUID(), symbol: String, quantity: Double, totalCostBasis: Double, purchaseDate: Date? = nil) {
         self.id             = id
         self.symbol         = symbol
         self.quantity       = quantity
         self.totalCostBasis = totalCostBasis
+        self.purchaseDate   = purchaseDate
     }
 }
 

@@ -9,6 +9,49 @@ import SwiftUI
 
 extension PortfolioValuePoint {
 
+    // Generates daily value history for a single holding from purchaseDate to today.
+    static func generateForHolding(
+        item: PortfolioItem,
+        purchaseDate: Date,
+        costBasis: Double
+    ) -> [PortfolioValuePoint] {
+        let cal   = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let start = cal.startOfDay(for: purchaseDate)
+
+        let diffDays = cal.dateComponents([.day], from: start, to: today).day ?? 0
+        let totalDays = max(diffDays + 1, 2)
+
+        let endValue   = max(item.price * item.quantity, 1)
+        let startValue = max(costBasis, 1)
+
+        var values = Array(repeating: 0.0, count: totalDays)
+        values[totalDays - 1] = endValue
+
+        var rng = SystemRandomNumberGenerator()
+        let vol = endValue * 0.012
+
+        // Random walk backwards from today
+        for i in stride(from: totalDays - 2, through: 0, by: -1) {
+            let change = Double.random(in: -vol...vol, using: &rng)
+            values[i] = max(values[i + 1] - change, 1)
+        }
+
+        // Blend to anchor first point at costBasis
+        let generatedStart = values[0]
+        for i in 0..<totalDays {
+            let t = Double(i) / Double(totalDays - 1)
+            values[i] += (startValue - generatedStart) * (1.0 - t)
+        }
+        values[0] = startValue
+        values[totalDays - 1] = endValue
+
+        return (0..<totalDays).map { i in
+            let date = cal.date(byAdding: .day, value: i, to: start)!
+            return PortfolioValuePoint(date: date, value: max(values[i], 1))
+        }
+    }
+
     static func generate(from items: [PortfolioItem], days: Int = 360) -> [PortfolioValuePoint] {
         guard !items.isEmpty else { return [] }
 
