@@ -119,7 +119,7 @@ struct StockDetailView: View {
             // Sticky Trade Button Bar
             tradeButtonBar
         }
-        .background(Color(hex: "12112e").ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
         .navigationTitle(item.symbol)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -137,17 +137,17 @@ struct StockDetailView: View {
     private var tradeButtonBar: some View {
         VStack(spacing: 0) {
             Divider()
-                .background(Color.white.opacity(0.08))
-            
+                .background(Color.primary.opacity(0.08))
+
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Posisi Kepemilikan")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.secondary)
-                    
+
                     Text("\(Int(currentQty)) lembar (\(Int(currentQty / 100)) Lot)")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                 }
                 
                 Spacer()
@@ -171,7 +171,7 @@ struct StockDetailView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color(hex: "1C1B35"))
+            .background(Color.appCardBackground)
         }
     }
 }
@@ -415,8 +415,7 @@ struct ChartCanvasView: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                //.fill(Color(.secondarySystemBackground).opacity(0.5))
-                .fill(Color(hex: "1e1d40"))
+                .fill(Color.appCardBackground)
 
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -664,8 +663,7 @@ struct ChartCanvasView: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 4).padding(.vertical, 2)
-                // .background(Color(.systemBackground).opacity(0.85))
-                .background(Color(hex: "1e1d40").opacity(0.85))
+                .background(Color.appCardBackground.opacity(0.85))
 
                 .cornerRadius(4)
                 .position(x: chartSize.width - 34, y: yMin + 10)

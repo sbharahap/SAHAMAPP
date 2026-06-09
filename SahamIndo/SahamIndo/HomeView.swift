@@ -30,7 +30,7 @@ struct HomeView: View {
                 )
             }
         }
-       .background(Color(hex: "12112e").ignoresSafeArea())
+       .background(Color.appBackground.ignoresSafeArea())
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top) {
@@ -39,7 +39,7 @@ struct HomeView: View {
                     Text("SAHAM")
                         .font(.title)
                         .fontWeight(.bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     Text(".AI")
                         .font(.title)
                         .fontWeight(.bold)
@@ -50,7 +50,7 @@ struct HomeView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
-            .background(Color(hex: "12112e"))
+            .background(Color.appBackground)
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { await vm.fetchData() }
@@ -270,7 +270,7 @@ struct SentimentBarView: View {
             ZStack(alignment: .leading) {
                 // Background track
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.white.opacity(0.15))
+                    .fill(Color.primary.opacity(0.12))
                     .frame(width: 110, height: 5)
                 
                 // Filled track based on score
@@ -404,7 +404,7 @@ struct MiniSparklineView: View {
             basePath.move(to: CGPoint(x: 0, y: startY))
             basePath.addLine(to: CGPoint(x: w, y: startY))
             ctx.stroke(basePath,
-                       with: .color(.white.opacity(0.15)),
+                       with: .color(Color.primary.opacity(0.15)),
                        style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
 
             // ── Dashed last-price horizontal line ──
@@ -472,7 +472,7 @@ struct AIFeatureCardsView: View {
 
                 Text("AI Features")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
             }
             .padding(.horizontal, 16)
             
@@ -508,7 +508,7 @@ private struct AIFeatureCardItem: View {
             VStack(alignment: .center, spacing: 2) {
                 Text(feature.title)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(feature.description)
                     .font(.system(size: 9, weight: .regular))
@@ -519,7 +519,7 @@ private struct AIFeatureCardItem: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(hex: "1C1B35"))
+        .background(Color.appCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -636,7 +636,7 @@ struct AIInsightCardView: View {
                 // Teks animasi
                 buildAttributedText(from: displayedText)
                     .font(.system(size: 14))
-                    .foregroundColor(Color.white.opacity(0.8))
+                    .foregroundColor(Color.primary.opacity(0.85))
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -765,7 +765,7 @@ struct AIInsightCardView: View {
                 temp.foregroundColor = accent
             } else {
                 temp.font = .system(size: 14)
-                temp.foregroundColor = .white.opacity(0.8)
+                temp.foregroundColor = Color.primary.opacity(0.85)
             }
             attrStr.append(temp)
         }
@@ -788,11 +788,11 @@ private struct InsightChipView: View {
                 .foregroundColor(isActive ? accent : .secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(isActive ? accent.opacity(0.12) : Color.white.opacity(0.04))
+                .background(isActive ? accent.opacity(0.12) : Color.primary.opacity(0.05))
                 .clipShape(Capsule())
                 .overlay(
                     Capsule().strokeBorder(
-                        isActive ? accent.opacity(0.45) : Color.white.opacity(0.1),
+                        isActive ? accent.opacity(0.45) : Color.primary.opacity(0.1),
                         lineWidth: 0.5
                     )
                 )

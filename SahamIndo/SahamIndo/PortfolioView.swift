@@ -28,12 +28,12 @@ struct PortfolioView: View {
     @State private var isAutoTrading = false
     @State private var autoTradeSuccessMessage: String? = nil
     
-    private let darkBg = Color(hex: "12112e")
-    private let cardBg = Color(hex: "1C1B35")
+    private let darkBg = Color.appBackground
+    private let cardBg = Color.appCardBackground
     private let accent = Color(hex: "EAB308")
     private let green = Color(hex: "22C55E")
     private let red = Color(hex: "EF4444")
-    
+
     // Filter owned stocks
     private var activePositions: [PortfolioItem] {
         vm.items.filter { $0.quantity > 0 }
@@ -76,7 +76,7 @@ struct PortfolioView: View {
                     Text("MY")
                         .font(.title)
                         .fontWeight(.bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     Text(" PORTFOLIO")
                         .font(.title)
                         .fontWeight(.bold)
@@ -88,7 +88,7 @@ struct PortfolioView: View {
                     Image(systemName: "arrow.counterclockwise")
                         .foregroundColor(.red)
                         .padding(8)
-                        .background(Color.white.opacity(0.05))
+                        .background(Color.primary.opacity(0.06))
                         .clipShape(Circle())
                 }
             }
@@ -122,7 +122,7 @@ struct PortfolioView: View {
                 
                 Text(formatIDR(vm.totalAssetValue))
                     .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 
                 let isGrowthPos = vm.portfolioGrowthPercent >= 0
                 HStack(spacing: 4) {
@@ -139,13 +139,13 @@ struct PortfolioView: View {
             }
             
             Divider()
-                .background(Color.white.opacity(0.1))
+                .background(Color.primary.opacity(0.1))
             
             // Sub-details
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
                 GridRow {
                     detailRow(label: "Saldo Kas (Cash)", value: vm.cashBalance, color: accent)
-                    detailRow(label: "Nilai Saham", value: vm.totalValue, color: .white)
+                    detailRow(label: "Nilai Saham", value: vm.totalValue, color: .primary)
                 }
                 GridRow {
                     detailRow(label: "Total Deposit", value: vm.totalDepositedCash, color: .secondary)
@@ -174,7 +174,7 @@ struct PortfolioView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .padding(.horizontal, 16)
     }
@@ -196,7 +196,7 @@ struct PortfolioView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Grafik Pertumbuhan Aset")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
                 .padding(.horizontal, 16)
             
             let historyPoints = PortfolioValuePoint.generate(from: vm.items)
@@ -213,7 +213,7 @@ struct PortfolioView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                     )
                     .padding(.horizontal, 16)
             }
@@ -225,7 +225,7 @@ struct PortfolioView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Portofolio Aktif Saya")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
                 .padding(.horizontal, 16)
             
             if activePositions.isEmpty {
@@ -236,7 +236,7 @@ struct PortfolioView: View {
                         .padding(.bottom, 4)
                     Text("Belum Ada Kepemilikan Saham")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     Text("Gunakan saldo kas Anda dan rekomendasi AI di bawah untuk mulai membeli saham.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
@@ -249,7 +249,7 @@ struct PortfolioView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
                 .padding(.horizontal, 16)
             } else {
@@ -262,7 +262,7 @@ struct PortfolioView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.symbol)
                                         .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(.primary)
                                     Text("\(Int(item.quantity)) lembar")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
@@ -273,8 +273,8 @@ struct PortfolioView: View {
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text(formatIDR(item.value))
                                         .font(.system(size: 14, weight: .bold, design: .rounded))
-                                        .foregroundColor(.white)
-                                    
+                                        .foregroundColor(.primary)
+
                                     let profit = item.value - (item.quantity * (vm.holdings.first(where: { $0.symbol == item.symbol })?.totalCostBasis ?? item.value) / max(item.quantity, 1))
                                     Text(profit >= 0 ? "+\(formatIDR(profit))" : formatIDR(profit))
                                         .font(.system(size: 10, weight: .medium))
@@ -296,7 +296,7 @@ struct PortfolioView: View {
                             .padding(.vertical, 10)
                             
                             if item.symbol != activePositions.last?.symbol {
-                                Divider().background(Color.white.opacity(0.08))
+                                Divider().background(Color.primary.opacity(0.08))
                             }
                         }
                     }
@@ -306,7 +306,7 @@ struct PortfolioView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
                 .padding(.horizontal, 16)
             }
@@ -318,7 +318,7 @@ struct PortfolioView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("AI Auto-Pilot (Auto Trade)")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
                 .padding(.horizontal, 16)
             
             VStack(alignment: .leading, spacing: 12) {
@@ -333,7 +333,7 @@ struct PortfolioView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Aktifkan Sistem Auto Trade")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                         Text("Menyelaraskan aset kas & saham Anda secara seimbang (20% per emiten) langsung ke Top 5 rekomendasi AI terbaik sistem saat ini.")
                             .font(.system(size: 10.5))
                             .foregroundColor(.secondary)
@@ -373,7 +373,7 @@ struct PortfolioView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
             )
             .padding(.horizontal, 16)
             .alert("Aktifkan AI Auto-Pilot?", isPresented: $showAutoTradeConfirmation) {
@@ -412,7 +412,7 @@ struct PortfolioView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Rekomendasi Trading AI (Top 5)")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 Text("Saham terbaik minggu ini disaring oleh model multi-timeframe trend & fundamental.")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
@@ -429,9 +429,9 @@ struct PortfolioView: View {
                                 HStack(spacing: 6) {
                                     Text(item.symbol)
                                         .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(.primary)
                                         .fixedSize(horizontal: true, vertical: false)
-                                    
+
                                     // FIXED: Tambahkan fixedSize agar tulisan tidak kepotong
                                     SentimentPill(sentiment: item.sentiment, size: .small)
                                         .fixedSize(horizontal: true, vertical: false)
@@ -450,7 +450,7 @@ struct PortfolioView: View {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text(formatIDR(item.price))
                                     .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.primary)
                                     .fixedSize(horizontal: true, vertical: false)
                                 
                                 Text(String(format: "%+.2f%%", item.percentChange))
@@ -474,7 +474,7 @@ struct PortfolioView: View {
                         .padding(.vertical, 10)
                         
                         if item.symbol != aiRecommendations.last?.symbol {
-                            Divider().background(Color.white.opacity(0.08))
+                            Divider().background(Color.primary.opacity(0.08))
                         }
                     }
                 }
@@ -484,7 +484,7 @@ struct PortfolioView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
             )
             .padding(.horizontal, 16)
         }
@@ -502,10 +502,9 @@ struct DepositSheetView: View {
     // Keyboard Focus State
     @FocusState private var isInputFocused: Bool
     
-    private let darkBg = Color(hex: "12112e")
-    private let cardBg = Color(hex: "1C1B35")
+    private let darkBg = Color.appBackground
     private let accent = Color(hex: "EAB308")
-    
+
     private let quickOptions: [Double] = [5_000_000, 10_000_000, 50_000_000, 100_000_000]
     
     var body: some View {
@@ -527,9 +526,9 @@ struct DepositSheetView: View {
                         .keyboardType(.numberPad)
                         .focused($isInputFocused) // FIXED: Bind focus state
                         .padding()
-                        .background(Color.white.opacity(0.05))
+                        .background(Color(.systemFill))
                         .cornerRadius(10)
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
@@ -545,10 +544,10 @@ struct DepositSheetView: View {
                         }) {
                             Text(formatIDRShort(amount))
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(.primary)
                                 .padding(.vertical, 8)
                                 .frame(maxWidth: .infinity)
-                                .background(Color.white.opacity(0.08))
+                                .background(Color.primary.opacity(0.08))
                                 .cornerRadius(8)
                         }
                     }
@@ -595,10 +594,9 @@ struct DepositSheetView: View {
                     .fontWeight(.bold)
                 }
             }
-            .preferredColorScheme(.dark)
         }
     }
-    
+
     private func executeDeposit() {
         guard let amount = Double(depositAmountStr), amount > 0 else { return }
         
@@ -628,12 +626,12 @@ struct TradeSheetView: View {
     // Keyboard Focus State
     @FocusState private var isInputFocused: Bool
     
-    private let darkBg = Color(hex: "12112e")
-    private let cardBg = Color(hex: "1C1B35")
+    private let darkBg = Color.appBackground
+    private let cardBg = Color.appCardBackground
     private let accent = Color(hex: "EAB308")
     private let green = Color(hex: "22C55E")
     private let red = Color(hex: "EF4444")
-    
+
     private var price: Double { stock.price }
     
     // Quick Amount Buttons
@@ -708,7 +706,7 @@ struct TradeSheetView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(stock.symbol)
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                         Text(stock.name ?? "-")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -717,7 +715,7 @@ struct TradeSheetView: View {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(formatIDR(price))
                             .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                         Text("Harga saat ini")
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -744,7 +742,7 @@ struct TradeSheetView: View {
                             .foregroundColor(.secondary)
                         Text("\(Int(ownedQuantity)) lembar (\(Int(ownedQuantity/100)) Lot)")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                     }
                 }
                 .padding(.horizontal, 4)
@@ -766,9 +764,9 @@ struct TradeSheetView: View {
                         .keyboardType(.numberPad)
                         .focused($isInputFocused) // FIXED: Bind focus state
                         .padding()
-                        .background(Color.white.opacity(0.05))
+                        .background(Color(.systemFill))
                         .cornerRadius(10)
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                         .font(.system(size: 16, weight: .bold))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
@@ -783,10 +781,10 @@ struct TradeSheetView: View {
                             Button(action: { tradeAmountStr = String(format: "%.0f", amount) }) {
                                 Text(formatIDRShort(amount))
                                     .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.primary)
                                     .padding(.vertical, 8)
                                     .frame(maxWidth: .infinity)
-                                    .background(Color.white.opacity(0.08))
+                                    .background(Color.primary.opacity(0.08))
                                     .cornerRadius(8)
                             }
                         }
@@ -795,10 +793,10 @@ struct TradeSheetView: View {
                             Button(action: { tradeAmountStr = String(format: "%.0f", lot) }) {
                                 Text("\(Int(lot)) Lot")
                                     .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.primary)
                                     .padding(.vertical, 8)
                                     .frame(maxWidth: .infinity)
-                                    .background(Color.white.opacity(0.08))
+                                    .background(Color.primary.opacity(0.08))
                                     .cornerRadius(8)
                             }
                         }
@@ -810,7 +808,7 @@ struct TradeSheetView: View {
                     invoiceRow(label: "Jumlah Transaksi", value: "\(Int(calculatedLots)) Lot (\(Int(calculatedShares)) lembar)")
                     invoiceRow(label: "Subtotal", value: formatIDR(subtotal))
                     invoiceRow(label: "Broker Fee (Pajak + Levy)", value: formatIDR(transactionFee))
-                    Divider().background(Color.white.opacity(0.1))
+                    Divider().background(Color.primary.opacity(0.1))
                     invoiceRow(
                         label: (tradeType == 0) ? "Total Estimasi Bayar" : "Total Estimasi Terima",
                         value: formatIDR(estTotal),
@@ -873,11 +871,10 @@ struct TradeSheetView: View {
                     .fontWeight(.bold)
                 }
             }
-            .preferredColorScheme(.dark)
         }
     }
-    
-    private func invoiceRow(label: String, value: String, isBold: Bool = false, color: Color = .white) -> some View {
+
+    private func invoiceRow(label: String, value: String, isBold: Bool = false, color: Color = .primary) -> some View {
         HStack {
             Text(label)
                 .font(.system(size: 11))
@@ -920,7 +917,7 @@ struct SentimentBarMiniView: View {
         HStack(spacing: 4) {
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.white.opacity(0.12))
+                    .fill(Color.primary.opacity(0.12))
                     .frame(width: 80, height: 4)
                 
                 RoundedRectangle(cornerRadius: 2)

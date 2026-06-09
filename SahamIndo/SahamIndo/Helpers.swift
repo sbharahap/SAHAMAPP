@@ -42,6 +42,25 @@ extension Color {
                   blue:    Double(b) / 255,
                   opacity: 1)
     }
+
+    // Adaptive backgrounds — dark navy in dark mode, system colors in light mode
+    static let appBackground = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 18/255, green: 17/255, blue: 46/255, alpha: 1)
+            : .systemBackground
+    })
+
+    static let appCardBackground = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 28/255, green: 27/255, blue: 53/255, alpha: 1)
+            : .secondarySystemBackground
+    })
+
+    static let appElevatedBackground = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 30/255, green: 29/255, blue: 64/255, alpha: 1)
+            : .tertiarySystemBackground
+    })
 }
 
 // MARK: - BEI Trading Hours
