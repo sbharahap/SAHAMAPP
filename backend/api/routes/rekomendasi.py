@@ -15,6 +15,26 @@ from backend.db.postgres import get_db_session, ScoringMingguan, Saham
 from backend.config import settings
 from backend.api.routes.data import get_single_stock_price_stats
 
+def clean_alasan_text(text: str) -> str:
+    if not text:
+        return ""
+    lines = text.split("\n")
+    cleaned_lines = []
+    for line in lines:
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
+        # Hapus header bracket seperti [RISIKO], [RECOMMENDASI], [ANALISIS], [REKOMENDASI]
+        if line_stripped.startswith("[") and line_stripped.endswith("]"):
+            continue
+        # Hapus baris yang hanya berisi kata rekomendasi
+        if line_stripped.upper() in ["RECOMMENDED", "NEUTRAL", "NEGATIVE", "RECOMMENDATION", "REKOMENDASI", "BUY", "SELL", "HOLD"]:
+            continue
+        cleaned_lines.append(line_stripped)
+    # Join dengan spasi agar menjadi satu paragraf mengalir
+    return " ".join(cleaned_lines).strip()
+
+
 router = APIRouter(
     prefix="/rekomendasi",
     tags=["Rekomendasi"],
@@ -74,7 +94,7 @@ async def get_rekomendasi_mingguan(
                 "skor_risiko": scoring_obj.skor_risiko,
                 "rekomendasi": scoring_obj.rekomendasi.value,
                 "confidence": scoring_obj.confidence,
-                "alasan": scoring_obj.alasan,
+                "alasan": clean_alasan_text(scoring_obj.alasan),
             })
 
         return {
@@ -150,7 +170,7 @@ async def get_rekomendasi_saham(
             },
             "rekomendasi": scoring_obj.rekomendasi.value,
             "confidence": scoring_obj.confidence,
-            "alasan": scoring_obj.alasan,
+            "alasan": clean_alasan_text(scoring_obj.alasan),
             "data_terbatas": scoring_obj.confidence < 0.4,
             "catatan_data": "Data fundamental atau berita pendukung kurang lengkap di database." if scoring_obj.confidence < 0.4 else "",
             "price": price,

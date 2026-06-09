@@ -155,12 +155,32 @@ async def get_makro_terbaru(db: AsyncSession = Depends(get_db_session)):
         )
 
 
+import time
+
+# In-memory caches for yfinance fetches
+_yf_single_cache = {}
+YF_SINGLE_CACHE_TTL = 180  # 3 minutes
+
+_yf_candles_cache = {}
+YF_CANDLES_CACHE_TTL = 300  # 5 minutes
+
+
 def fetch_yf_single(symbol: str) -> tuple[float, float, float]:
     """
-    Mengambil data harga penutupan terakhir dan perubahan harga dari yfinance (synchronous).
+    Mengambil data harga penutupan terakhir dan perubahan harga dari yfinance (synchronous)
+    dengan dukungan in-memory caching untuk meningkatkan performa response.
     """
+    symbol_upper = symbol.strip().upper()
+    now = time.time()
+    
+    # Cek cache
+    if symbol_upper in _yf_single_cache:
+        cached_time, cached_data = _yf_single_cache[symbol_upper]
+        if now - cached_time < YF_SINGLE_CACHE_TTL:
+            return cached_data
+            
     try:
-        ticker = yf.Ticker(f"{symbol}.JK")
+        ticker = yf.Ticker(f"{symbol_upper}.JK")
         hist = ticker.history(period="2d")
         if not hist.empty:
             if len(hist) >= 2:
@@ -168,12 +188,17 @@ def fetch_yf_single(symbol: str) -> tuple[float, float, float]:
                 prev_close = float(hist['Close'].iloc[-2])
                 change = price - prev_close
                 pct_change = (change / prev_close) * 100.0 if prev_close > 0 else 0.0
-                return round(price, 2), round(change, 2), round(pct_change, 2)
+                result = (round(price, 2), round(change, 2), round(pct_change, 2))
+                _yf_single_cache[symbol_upper] = (now, result)
+                return result
             else:
                 price = float(hist['Close'].iloc[-1])
-                return round(price, 2), 0.0, 0.0
+                result = (round(price, 2), 0.0, 0.0)
+                _yf_single_cache[symbol_upper] = (now, result)
+                return result
     except Exception as e:
-        logger.error(f"Gagal mengambil fallback yfinance untuk {symbol}: {e}")
+        logger.error(f"Gagal mengambil fallback yfinance untuk {symbol_upper}: {e}")
+        
     return 0.0, 0.0, 0.0
 
 
@@ -207,9 +232,20 @@ async def get_single_stock_price_stats(symbol: str, db: AsyncSession) -> tuple[f
 
 def fetch_candles_yf(symbol: str, range_val: str) -> list[dict]:
     """
-    Mengambil data chart candles menggunakan yfinance (synchronous).
+    Mengambil data chart candles menggunakan yfinance (synchronous)
+    dengan dukungan in-memory caching untuk menghindari network fetch lambat berulang kali.
     """
     symbol_upper = symbol.strip().upper()
+    range_upper = range_val.strip().upper()
+    cache_key = (symbol_upper, range_upper)
+    now = time.time()
+    
+    # Cek cache
+    if cache_key in _yf_candles_cache:
+        cached_time, cached_data = _yf_candles_cache[cache_key]
+        if now - cached_time < YF_CANDLES_CACHE_TTL:
+            return cached_data
+            
     ticker_symbol = f"{symbol_upper}.JK"
     
     # Map range to period and interval
@@ -223,33 +259,38 @@ def fetch_candles_yf(symbol: str, range_val: str) -> list[dict]:
         "5Y": ("5y", "1wk"),
     }
     
-    period, interval = range_map.get(range_val.upper(), ("1d", "5m"))
-    ticker = yf.Ticker(ticker_symbol)
-    df = ticker.history(period=period, interval=interval)
-    
-    candles = []
-    if df.empty:
-        return candles
+    period, interval = range_map.get(range_upper, ("1d", "5m"))
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        df = ticker.history(period=period, interval=interval)
         
-    for ts, row in df.iterrows():
-        # Pastikan timezone WIB/Asia/Jakarta
-        if ts.tzinfo is None:
-            jkt_tz = pytz.timezone("Asia/Jakarta")
-            ts_aware = jkt_tz.localize(ts)
-        else:
-            jkt_tz = pytz.timezone("Asia/Jakarta")
-            ts_aware = ts.astimezone(jkt_tz)
+        candles = []
+        if df.empty:
+            return candles
             
-        candles.append({
-            "ts": ts_aware.isoformat(),
-            "open": float(row["Open"]) if not pd.isna(row["Open"]) else None,
-            "high": float(row["High"]) if not pd.isna(row["High"]) else None,
-            "low": float(row["Low"]) if not pd.isna(row["Low"]) else None,
-            "close": float(row["Close"]),
-            "volume": int(row["Volume"]) if not pd.isna(row["Volume"]) else 0
-        })
-        
-    return candles
+        for ts, row in df.iterrows():
+            if ts.tzinfo is None:
+                jkt_tz = pytz.timezone("Asia/Jakarta")
+                ts_aware = jkt_tz.localize(ts)
+            else:
+                jkt_tz = pytz.timezone("Asia/Jakarta")
+                ts_aware = ts.astimezone(jkt_tz)
+                
+            candles.append({
+                "ts": ts_aware.isoformat(),
+                "open": float(row["Open"]) if not pd.isna(row["Open"]) else None,
+                "high": float(row["High"]) if not pd.isna(row["High"]) else None,
+                "low": float(row["Low"]) if not pd.isna(row["Low"]) else None,
+                "close": float(row["Close"]),
+                "volume": int(row["Volume"]) if not pd.isna(row["Volume"]) else 0
+            })
+            
+        _yf_candles_cache[cache_key] = (now, candles)
+        return candles
+    except Exception as e:
+        logger.error(f"Gagal mengambil candles yfinance untuk {ticker_symbol}: {e}")
+        return []
+
 
 
 @router.get("/stocks")

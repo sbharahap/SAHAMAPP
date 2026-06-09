@@ -434,7 +434,7 @@ async def hitung_sentimen_qwen(teks: str) -> float:
         from backend.config import settings
 
         llm = ChatOllama(
-            model=settings.ollama_model,
+            model="qwen2.5:3b",
             base_url=settings.ollama_base_url,
             temperature=0.0,
             timeout=30,

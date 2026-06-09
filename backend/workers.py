@@ -90,7 +90,9 @@ async def scrape_news_job() -> None:
     Berita disimpan ke PostgreSQL, dianalisis sentimennya, dan dimasukkan ke ChromaDB (RAG).
     Dijalankan tiap 30 menit.
     """
+    from backend.progress_tracker import set_progress
     logger.info("⏰ Memulai background job: Scraping Berita...")
+    set_progress("scrape_news", 5, "running", "Mengambil daftar emiten...")
     try:
         # 1. Ambil daftar semua kode saham dari PostgreSQL
         async with async_session() as session:
@@ -99,22 +101,33 @@ async def scrape_news_job() -> None:
 
         if not kode_saham_list:
             logger.warning("⚠️ Tidak ada kode saham terdaftar di DB. Skip scraping berita.")
+            set_progress("scrape_news", 100, "idle", "Selesai (tidak ada emiten)")
             return
 
         # 2. Collect berita untuk semua saham (batch)
         logger.info(f"📰 Scraping berita untuk {len(kode_saham_list)} saham...")
-        raw_berita = await collect_berita_batch(kode_saham_list, hari_terakhir=3)
+        set_progress("scrape_news", 15, "running", f"Scraping berita untuk {len(kode_saham_list)} emiten...")
+        
+        async def news_progress_callback(current, total, kode):
+            percent = int(15 + (current / total) * 15)  # Maps 15% to 30% progress
+            set_progress("scrape_news", percent, "running", f"Scraping berita emiten {kode} ({current}/{total})...")
+            
+        raw_berita = await collect_berita_batch(kode_saham_list, hari_terakhir=3, progress_callback=news_progress_callback)
 
         # 3. Collect berita pasar umum
         logger.info("🌐 Scraping berita pasar umum...")
+        set_progress("scrape_news", 30, "running", "Scraping berita pasar umum...")
         raw_berita_pasar = await collect_berita_pasar(hari_terakhir=2)
         raw_berita.extend(raw_berita_pasar)
 
         # 4. Clean data, analisis sentimen, dan simpan ke PostgreSQL
         saved_count = 0
+        total_berita = len(raw_berita)
         async with async_session() as session:
-            for item in raw_berita:
+            for index, item in enumerate(raw_berita):
                 try:
+                    percent = int(35 + (index / max(total_berita, 1)) * 45)
+                    set_progress("scrape_news", percent, "running", f"Menganalisis sentimen berita {index+1}/{total_berita}...")
                     # Clean data
                     cleaned = clean_berita(item)
                     # Hitung sentimen menggunakan isi_berita jika ada, fallback ke judul (Kasus 5)
@@ -150,6 +163,7 @@ async def scrape_news_job() -> None:
  
             if unembedded_news:
                 logger.info(f"🧠 Melakukan embedding untuk {len(unembedded_news)} berita baru ke ChromaDB...")
+                set_progress("scrape_news", 85, "running", f"Melakukan embedding {len(unembedded_news)} berita ke ChromaDB...")
                 
                 # Ubah model SQLAlchemy ke format list of dict untuk indexer
                 berita_dict_list = []
@@ -178,9 +192,12 @@ async def scrape_news_job() -> None:
                     logger.info(f"✅ Embedding selesai: {stats['berhasil']} berita ter-index ke ChromaDB.")
             else:
                 logger.info("🧠 Tidak ada berita baru untuk di-embed.")
+        
+        set_progress("scrape_news", 100, "idle", f"Selesai (Berhasil menyimpan {saved_count} berita)")
 
     except Exception as e:
         logger.error(f"❌ Gagal menjalankan scraping berita: {e}")
+        set_progress("scrape_news", 0, "failed", f"Gagal: {e}")
     logger.info("⏰ Background job: Scraping Berita selesai.")
 
 
@@ -189,7 +206,9 @@ async def scrape_fundamental_job() -> None:
     Background job untuk memperbarui data fundamental dan harga harian emiten.
     Dijalankan tiap hari.
     """
+    from backend.progress_tracker import set_progress
     logger.info("⏰ Memulai background job: Scraping Fundamental...")
+    set_progress("scrape_fundamental", 5, "running", "Mengambil daftar emiten...")
     try:
         # 1. Ambil daftar semua kode saham
         async with async_session() as session:
@@ -198,18 +217,24 @@ async def scrape_fundamental_job() -> None:
 
         if not kode_saham_list:
             logger.warning("⚠️ Tidak ada kode saham terdaftar di DB.")
+            set_progress("scrape_fundamental", 100, "idle", "Selesai (tidak ada emiten)")
             return
 
         # 2. Collect fundamental dari Yahoo Finance
         logger.info(f"📊 Mengambil fundamental untuk {len(kode_saham_list)} saham...")
+        set_progress("scrape_fundamental", 15, "running", f"Mengambil data fundamental dari Yahoo Finance...")
         raw_fund = await collect_fundamental_batch(kode_saham_list, batch_size=10)
 
         # 3. Bersihkan dan simpan ke PostgreSQL
         saved_count = 0
+        total_stocks = len(raw_fund)
         async with async_session() as session:
-            for item in raw_fund:
+            for index, item in enumerate(raw_fund):
                 try:
                     kode = item.get("kode_saham")
+                    percent = int(20 + (index / max(total_stocks, 1)) * 80)
+                    set_progress("scrape_fundamental", percent, "running", f"Memproses fundamental & XBRL {kode} ({index+1}/{total_stocks})...")
+                    
                     if kode:
                         logger.info(f"🔍 Mengambil data XBRL IDX untuk {kode}...")
                         xbrl_data = await collect_xbrl_fundamental(kode)
@@ -268,9 +293,11 @@ async def scrape_fundamental_job() -> None:
                     logger.error(f"❌ Gagal memproses fundamental {item.get('kode_saham', '')}: {e}")
             await session.commit()
         logger.info(f"💾 {saved_count} data fundamental berhasil disimpan/diperbarui di PostgreSQL.")
+        set_progress("scrape_fundamental", 100, "idle", "Selesai")
 
     except Exception as e:
         logger.error(f"❌ Gagal menjalankan scraping fundamental: {e}")
+        set_progress("scrape_fundamental", 0, "failed", f"Gagal: {e}")
     logger.info("⏰ Background job: Scraping Fundamental selesai.")
 
 
@@ -279,10 +306,13 @@ async def scrape_makro_job() -> None:
     Background job untuk memperbarui data makroekonomi (BI rate, Inflasi, kurs USD/IDR, IHSG).
     Dijalankan tiap hari.
     """
+    from backend.progress_tracker import set_progress
     logger.info("⏰ Memulai background job: Scraping Makroekonomi...")
+    set_progress("scrape_makro", 10, "running", "Menghubungkan ke API Bank Indonesia & BPS...")
     try:
         raw_makro = await collect_makro()
 
+        set_progress("scrape_makro", 50, "running", "Menyimpan indikator makroekonomi ke database...")
         saved_count = 0
         async with async_session() as session:
             for item in raw_makro:
@@ -324,12 +354,16 @@ async def scrape_makro_job() -> None:
                 summary_text = f"Kondisi Makroekonomi Indonesia per {date.today().isoformat()}:\n" + "\n".join(summary_parts)
                 
                 logger.info("📥 Meng-index ringkasan data makro ke ChromaDB...")
+                set_progress("scrape_makro", 80, "running", "Meng-index ringkasan makro ke ChromaDB...")
                 await index_data_makro(summary_text, indikator="ringkasan_makro", sumber="system_generated")
             except Exception as ex_index:
                 logger.error(f"❌ Gagal meng-index data makro ke ChromaDB: {ex_index}")
+        
+        set_progress("scrape_makro", 100, "idle", "Selesai")
 
     except Exception as e:
         logger.error(f"❌ Gagal menjalankan scraping makroekonomi: {e}")
+        set_progress("scrape_makro", 0, "failed", f"Gagal: {e}")
     logger.info("⏰ Background job: Scraping Makroekonomi selesai.")
 
 
@@ -338,7 +372,9 @@ async def run_scoring_job() -> None:
     Background job untuk melakukan scoring mingguan (top 10 rekomendasi).
     Dijalankan setiap hari Senin jam 06:00 pagi.
     """
+    from backend.progress_tracker import set_progress
     logger.info("⏰ Memulai background job: Scoring Rekomendasi Mingguan...")
+    set_progress("run_scoring", 5, "running", "Memuat daftar emiten...")
     try:
         # 1. Ambil daftar semua kode saham
         async with async_session() as session:
@@ -349,23 +385,28 @@ async def run_scoring_job() -> None:
             msg = "Tidak ada kode saham terdaftar untuk di-scoring."
             logger.warning(f"⚠️ {msg}")
             notifier.report_error("scoring_job", msg, level="ERROR", auto_open_browser=True)
+            set_progress("run_scoring", 0, "failed", msg)
             return
 
         # 2. Jalankan pipeline scoring
         logger.info(f"🚀 Menjalankan scoring untuk {len(kode_saham_list)} saham...")
+        set_progress("run_scoring", 15, "running", f"Menjalankan scoring untuk {len(kode_saham_list)} emiten...")
         await jalankan_scoring(kode_saham_list, simpan_ke_db=True)
         logger.info("✅ Scoring rekomendasi mingguan selesai.")
         notifier.report_info("scoring_job", f"Scoring mingguan selesai untuk {len(kode_saham_list)} emiten. Lihat hasil di tab Rekomendasi.")
+        set_progress("run_scoring", 100, "idle", "Selesai")
 
     except RuntimeError as e:
         # RuntimeError dilempar oleh scoring_agent jika ada emiten yang gagal atau DB offline
         msg = f"Scoring DIHENTIKAN karena error kritis: {e}"
         logger.critical(f"🚨 {msg}")
         notifier.report_error("scoring_job", msg, level="CRITICAL", auto_open_browser=True)
+        set_progress("run_scoring", 0, "failed", msg)
     except Exception as e:
         msg = f"Gagal menjalankan scoring mingguan: {type(e).__name__}: {e}"
         logger.error(f"❌ {msg}")
         notifier.report_error("scoring_job", msg, level="ERROR", auto_open_browser=True)
+        set_progress("run_scoring", 0, "failed", msg)
     logger.info("⏰ Background job: Scoring selesai.")
 
 
