@@ -1560,6 +1560,12 @@ async def generate_alasan(state: ScoringState) -> dict[str, Any]:
     for i, saham in enumerate(top_saham, 1):
         kode = saham["kode_saham"]
         logger.info(f"   🤖 [{i}/{len(top_saham)}] Generating alasan untuk {kode}...")
+        try:
+            from backend.progress_tracker import set_progress
+            percent = int(15 + (i / len(top_saham)) * 80)
+            set_progress("run_scoring", percent, "running", f"Menganalisis & merangkum alasan untuk {kode} ({i}/{len(top_saham)})...")
+        except Exception:
+            pass
 
         try:
             # Ambil konteks dari ChromaDB
@@ -1612,15 +1618,15 @@ LAPORAN KEUANGAN:
 {konteks_laporan}
 
 INSTRUKSI:
-1. Jelaskan dalam 3-4 kalimat mengapa saham {kode} mendapat skor {saham['skor_total']:.1f}/100 minggu ini
-2. Sebutkan faktor positif utama dan risiko utama
-3. Gunakan Bahasa Indonesia yang natural dan mudah dipahami
-4. Akhiri dengan rekomendasi: RECOMMENDED, NEUTRAL, atau NEGATIVE
-5. JANGAN gunakan format markdown, tulis dalam paragraf biasa
+1. Jelaskan dalam 3-4 kalimat mengapa saham {kode} mendapat skor {saham['skor_total']:.1f}/100 minggu ini.
+2. Gabungkan penjelasan faktor positif utama dan risiko utama langsung ke dalam analisis tersebut secara mengalir.
+3. Gunakan Bahasa Indonesia yang natural dan mudah dipahami.
+4. JANGAN gunakan format markdown, jangan buat sub-judul terpisah (seperti [RISIKO], [FAKTOR POSITIF] dsb), dan jangan gunakan tanda kurung siku [] di dalam paragraf analisis.
+5. Tuliskan analisis di bawah tag [ANALISIS] dan rekomendasi di bawah tag [REKOMENDASI] sesuai format.
 
 Format jawaban:
 [ANALISIS]
-(tulis analisis 3-4 kalimat di sini)
+(tulis paragraf analisis 3-4 kalimat di sini)
 
 [REKOMENDASI]
 (tulis RECOMMENDED, NEUTRAL, atau NEGATIVE)"""
@@ -1687,7 +1693,7 @@ def _parse_llm_response(
     alasan = response
     rekomendasi = _tentukan_rekomendasi(skor_total)  # Default
 
-    # Coba parse format [ANALISIS] dan [REKOMENDASI]
+    # Coba parse format [ANALISIS] dan [REKOMENDASI] jika ada
     if "[ANALISIS]" in response:
         parts = response.split("[ANALISIS]")
         if len(parts) > 1:
@@ -1715,8 +1721,21 @@ def _parse_llm_response(
     elif "NEUTRAL" in response.upper()[-50:] or "HOLD" in response.upper()[-50:]:
         rekomendasi = "NEUTRAL"
 
-    # Bersihkan alasan
-    alasan = alasan.strip()
+    # Bersihkan alasan secara agresif dari sub-judul, bracket [], dan kata rekomendasi terisolasi
+    cleaned_lines = []
+    for line in alasan.split("\n"):
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
+        # Hapus header bracket
+        if line_stripped.startswith("[") and line_stripped.endswith("]"):
+            continue
+        # Hapus line yang hanya berisi kata rekomendasi
+        if line_stripped.upper() in ["RECOMMENDED", "NEUTRAL", "NEGATIVE", "RECOMMENDATION", "REKOMENDASI", "BUY", "SELL", "HOLD"]:
+            continue
+        cleaned_lines.append(line_stripped)
+
+    alasan = " ".join(cleaned_lines).strip()
     if not alasan:
         alasan = "Analisis tidak tersedia."
 

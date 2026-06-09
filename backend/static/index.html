@@ -11,7 +11,7 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Styling -->
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=1.2.0">
 </head>
 <body>
     <!-- CRITICAL ERROR BANNER (hidden by default, shown via SSE) -->
@@ -239,44 +239,91 @@
                                 <div class="action-desc">
                                     <h4>Koleksi Berita & Embedding</h4>
                                     <p>Mengambil berita saham dari RSS feeds (Google News & Kontan), menganalisis sentimen, dan membuat embedding RAG ke ChromaDB.</p>
+                                    <div class="job-progress-container hidden" id="progress-scrape_news">
+                                        <div class="job-progress-bar">
+                                            <div class="job-progress-fill" style="width: 0%"></div>
+                                        </div>
+                                        <div class="job-progress-text">
+                                            <span class="progress-percent">0%</span>
+                                            <span class="progress-msg">Siap</span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <button class="btn btn-primary" onclick="triggerJob('scrape_news', this)">
                                     <i class="fa-solid fa-play"></i> Jalankan
                                 </button>
                             </div>
-
+ 
                             <div class="action-row">
                                 <div class="action-desc">
                                     <h4>Perbarui Fundamental Saham</h4>
                                     <p>Mengambil data rasio keuangan (ROE, EPS, PBV, DER) dan harga penutupan harian terbaru dari Yahoo Finance untuk seluruh emiten.</p>
+                                    <div class="job-progress-container hidden" id="progress-scrape_fundamental">
+                                        <div class="job-progress-bar">
+                                            <div class="job-progress-fill" style="width: 0%"></div>
+                                        </div>
+                                        <div class="job-progress-text">
+                                            <span class="progress-percent">0%</span>
+                                            <span class="progress-msg">Siap</span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <button class="btn btn-primary" onclick="triggerJob('scrape_fundamental', this)">
                                     <i class="fa-solid fa-play"></i> Jalankan
                                 </button>
-                            </div>                             <div class="action-row">
+                            </div>
+ 
+                            <div class="action-row">
                                 <div class="action-desc">
                                     <h4>Perbarui Indikator Makro</h4>
                                     <p>Mengambil data BI Rate terbaru dari BI, kurs USD/IDR, serta nilai indeks IHSG untuk kalkulasi scoring makroekonomi.</p>
+                                    <div class="job-progress-container hidden" id="progress-scrape_makro">
+                                        <div class="job-progress-bar">
+                                            <div class="job-progress-fill" style="width: 0%"></div>
+                                        </div>
+                                        <div class="job-progress-text">
+                                            <span class="progress-percent">0%</span>
+                                            <span class="progress-msg">Siap</span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <button class="btn btn-primary" onclick="triggerJob('scrape_makro', this)">
                                     <i class="fa-solid fa-play"></i> Jalankan
                                 </button>
                             </div>
-
+ 
                             <div class="action-row">
                                 <div class="action-desc">
                                     <h4>Cek Fluktuasi Sentimen & Alert</h4>
                                     <p>Menjalankan Alert Agent untuk memantau fluktuasi sentimen berdasarkan berita 2 hari terakhir. Jika delta > 10 poin, trigger push notification ke iPhone.</p>
+                                    <div class="job-progress-container hidden" id="progress-run_alerts">
+                                        <div class="job-progress-bar">
+                                            <div class="job-progress-fill" style="width: 0%"></div>
+                                        </div>
+                                        <div class="job-progress-text">
+                                            <span class="progress-percent">0%</span>
+                                            <span class="progress-msg">Siap</span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <button class="btn btn-primary" onclick="triggerJob('run_alerts', this)">
                                     <i class="fa-solid fa-play"></i> Jalankan
                                 </button>
                             </div>
-
+ 
                             <div class="action-row highlight">
                                 <div class="action-desc">
                                     <h4>Jalankan Scoring Rekomendasi</h4>
                                     <p>Memicu LangGraph Scoring Agent untuk menganalisis seluruh saham pantauan berdasarkan data terbaru, dan generate analisis ringkas via Qwen3.</p>
+                                    <div class="job-progress-container hidden" id="progress-run_scoring">
+                                        <div class="job-progress-bar">
+                                            <div class="job-progress-fill" style="width: 0%"></div>
+                                        </div>
+                                        <div class="job-progress-text">
+                                            <span class="progress-percent">0%</span>
+                                            <span class="progress-msg">Siap</span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <button class="btn btn-accent" onclick="triggerJob('run_scoring', this)">
                                     <i class="fa-solid fa-bolt"></i> Jalankan Scoring
@@ -394,6 +441,6 @@
     </div>
 
     <!-- Scripting -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=1.2.0"></script>
 </body>
 </html>

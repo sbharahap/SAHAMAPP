@@ -53,22 +53,6 @@ _HTTP_TIMEOUT = 30.0
 # Delay antar request RSS untuk menghindari rate limiting
 _REQUEST_DELAY_SECONDS: float = 2.0
 
-# Whitelist media friendly yang membolehkan scraping dan stabil
-ALLOWED_DOMAINS = [
-    "kontan.co.id",
-    "cnbcindonesia.com",
-    "antaranews.com",
-    "bisnis.com",
-    "investor.id",
-    "republika.co.id",
-    "liputan6.com",
-    "sindonews.com",
-    "tempo.co",
-    "idxchannel.com",
-    "detik.com",
-    "kompas.com",
-    "tribunnews.com"
-]
 
 # User agent agar tidak diblokir oleh server
 _USER_AGENT = (
@@ -127,16 +111,6 @@ async def fetch_article_content(url: str) -> str:
         ) as client:
             response = await client.get(url)
             response.raise_for_status()
-
-        # Cek domain final setelah redirect (Kasus 2)
-        final_url = str(response.url)
-        from urllib.parse import urlparse
-        domain = urlparse(final_url).netloc.lower()
-
-        is_allowed = any(allowed in domain for allowed in ALLOWED_DOMAINS)
-        if not is_allowed:
-            logger.warning(f"⚠️ Domain '{domain}' tidak ada dalam whitelist scraping. Skip.")
-            return ""
 
         soup = BeautifulSoup(response.text, "html.parser")
         
@@ -198,7 +172,7 @@ async def is_news_relevant_llm(title: str, content: str) -> bool:
         from backend.config import settings
 
         llm = ChatOllama(
-            model=settings.ollama_model,
+            model="qwen2.5:3b",
             base_url=settings.ollama_base_url,
             temperature=0.0,
             timeout=20,
@@ -625,6 +599,7 @@ async def collect_berita(
 async def collect_berita_batch(
     kode_saham_list: list[str],
     hari_terakhir: int = 7,
+    progress_callback = None,
 ) -> list[dict[str, Any]]:
     """
     Ambil berita untuk banyak saham sekaligus.
@@ -635,9 +610,7 @@ async def collect_berita_batch(
     Args:
         kode_saham_list: List kode saham (contoh: ["BBCA", "TLKM", "ASII"])
         hari_terakhir: Hanya ambil berita dalam N hari terakhir
-
-    Returns:
-        List gabungan berita dari semua saham (sudah dideduplikasi)
+        progress_callback: Callback function to update status/progress
     """
     logger.info(
         f"📰 Batch berita: {len(kode_saham_list)} saham, "
@@ -647,6 +620,9 @@ async def collect_berita_batch(
     all_berita: list[dict[str, Any]] = []
 
     for i, kode in enumerate(kode_saham_list):
+        if progress_callback:
+            await progress_callback(i + 1, len(kode_saham_list), kode)
+            
         try:
             berita = await collect_berita(kode, hari_terakhir)
             all_berita.extend(berita)
@@ -669,6 +645,7 @@ async def collect_berita_batch(
     )
 
     return unique_berita
+
 
 
 async def collect_berita_pasar(

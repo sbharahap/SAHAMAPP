@@ -490,11 +490,131 @@ async function fetchAlertsHistory() {
     }
 }
 
+// Job Labels & Original InnerHTML mapping for dynamic state restoration
+const jobButtonLabels = {
+    "scrape_news": { active: "Scraping Berita...", original: '<i class="fa-solid fa-play"></i> Jalankan' },
+    "scrape_fundamental": { active: "Scraping Fundamental...", original: '<i class="fa-solid fa-play"></i> Jalankan' },
+    "scrape_makro": { active: "Scraping Makro...", original: '<i class="fa-solid fa-play"></i> Jalankan' },
+    "run_alerts": { active: "Memantau Sentimen...", original: '<i class="fa-solid fa-play"></i> Jalankan' },
+    "run_scoring": { active: "Menghitung Skor...", original: '<i class="fa-solid fa-bolt"></i> Jalankan Scoring' }
+};
+
+// Polling status progress
+let progressInterval = null;
+
+async function pollJobsProgress() {
+    try {
+        const response = await fetch('/api/jobs/progress');
+        if (!response.ok) return;
+        const data = await response.json();
+        
+        let shouldReloadStats = false;
+        
+        for (const [jobName, info] of Object.entries(data)) {
+            const container = document.getElementById(`progress-${jobName}`);
+            if (!container) continue;
+            
+            const fill = container.querySelector('.job-progress-fill');
+            const percentText = container.querySelector('.progress-percent');
+            const msgText = container.querySelector('.progress-msg');
+            const btn = document.querySelector(`button[onclick*="'${jobName}'"]`);
+            
+            if (info.status === 'running') {
+                container.classList.remove('hidden');
+                fill.style.width = `${info.percent}%`;
+                fill.style.background = 'linear-gradient(90deg, var(--color-primary), var(--color-accent))';
+                percentText.innerText = `${info.percent}%`;
+                percentText.style.color = 'var(--color-primary)';
+                msgText.innerText = info.message || 'Memproses...';
+                
+                if (btn) {
+                    btn.disabled = true;
+                    const activeLabel = jobButtonLabels[jobName]?.active || 'Memproses...';
+                    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${activeLabel}`;
+                    btn.style.backgroundColor = '';
+                    btn.style.color = '';
+                }
+            } else if (info.status === 'failed') {
+                container.classList.remove('hidden');
+                fill.style.width = `${info.percent || 100}%`;
+                fill.style.background = 'var(--color-sell)';
+                percentText.innerText = 'Gagal';
+                percentText.style.color = 'var(--color-sell)';
+                msgText.innerText = info.message || 'Gagal menjalankan';
+                
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Coba Lagi`;
+                    btn.style.backgroundColor = 'var(--color-sell)';
+                    btn.style.color = 'white';
+                }
+            } else {
+                // idle
+                const isAlreadyHidden = container.classList.contains('hidden');
+                if (!isAlreadyHidden) {
+                    fill.style.width = '100%';
+                    percentText.innerText = '100%';
+                    percentText.style.color = 'var(--color-buy)';
+                    msgText.innerText = info.message || 'Selesai';
+                    
+                    if (btn) {
+                        btn.disabled = true; // Tetap nonaktifkan selama transisi sukses 5 detik
+                        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Selesai!';
+                        btn.style.backgroundColor = 'var(--color-buy)';
+                        btn.style.color = 'white';
+                    }
+                    
+                    // Selesai -> reload stats sekali
+                    shouldReloadStats = true;
+                    
+                    // Sembunyikan setelah 5 detik dan kembalikan style asli tombol
+                    (function(targetJobName, targetBtn) {
+                        setTimeout(() => {
+                            fetch('/api/jobs/progress')
+                                .then(res => res.json())
+                                .then(latestData => {
+                                    if (latestData[targetJobName] && latestData[targetJobName].status === 'idle') {
+                                        const c = document.getElementById(`progress-${targetJobName}`);
+                                        if (c) c.classList.add('hidden');
+                                        if (targetBtn) {
+                                            targetBtn.disabled = false;
+                                            targetBtn.innerHTML = jobButtonLabels[targetJobName]?.original || 'Jalankan';
+                                            targetBtn.style.backgroundColor = '';
+                                            targetBtn.style.color = '';
+                                        }
+                                    }
+                                });
+                        }, 5000);
+                    })(jobName, btn);
+                } else {
+                    if (btn && btn.disabled && btn.innerHTML.includes('fa-circle-notch')) {
+                        btn.disabled = false;
+                        btn.innerHTML = jobButtonLabels[jobName]?.original || 'Jalankan';
+                        btn.style.backgroundColor = '';
+                        btn.style.color = '';
+                    }
+                }
+            }
+        }
+        
+        if (shouldReloadStats) {
+            fetchStats();
+        }
+    } catch (e) {
+        console.error('Error polling jobs progress:', e);
+    }
+}
+
+function startProgressPolling() {
+    if (progressInterval) clearInterval(progressInterval);
+    pollJobsProgress();
+    progressInterval = setInterval(pollJobsProgress, 1500);
+}
+
 // Trigger background jobs manual
 async function triggerJob(jobName, btnElement) {
-    const originalText = btnElement.innerHTML;
     btnElement.disabled = true;
-    btnElement.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Memproses...';
+    btnElement.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Memicu...';
 
     try {
         const response = await fetch(`/api/jobs/trigger?job_name=${jobName}`, {
@@ -503,19 +623,8 @@ async function triggerJob(jobName, btnElement) {
         const data = await response.json();
 
         if (response.ok) {
-            // Beri notifikasi sukses sederhana
-            btnElement.innerHTML = '<i class="fa-solid fa-circle-check"></i> Sukses!';
-            btnElement.style.backgroundColor = 'var(--color-buy)';
-            btnElement.style.color = 'white';
-
-            setTimeout(() => {
-                btnElement.disabled = false;
-                btnElement.innerHTML = originalText;
-                btnElement.style.backgroundColor = '';
-                btnElement.style.color = '';
-                // Reload status data setelah job dipicu
-                fetchStats();
-            }, 3000);
+            // Segera update progress agar UI responsif
+            setTimeout(pollJobsProgress, 100);
         } else {
             throw new Error(data.detail || 'Gagal memicu pekerjaan.');
         }
@@ -527,12 +636,13 @@ async function triggerJob(jobName, btnElement) {
         
         setTimeout(() => {
             btnElement.disabled = false;
-            btnElement.innerHTML = originalText;
+            btnElement.innerHTML = jobButtonLabels[jobName]?.original || 'Jalankan';
             btnElement.style.backgroundColor = '';
             btnElement.style.color = '';
         }, 3000);
     }
 }
+
 
 // Inisialisasi formulir tambah saham
 function initAddSahamForm() {
@@ -714,6 +824,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initChatbot();
     initAddSahamForm();
     startAdminPolling();
+    startProgressPolling(); // <-- Poll background job progress periodically
     initSSENotifier(); // <-- Subscribe ke SSE notifikasi real-time
 
     // Jalankan load rekomendasi secara default saat pertama kali dimuat

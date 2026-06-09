@@ -367,6 +367,15 @@ async def trigger_job(job_name: str, background_tasks: BackgroundTasks):
     }
 
 
+@app.get("/api/jobs/progress")
+async def get_jobs_progress():
+    """
+    Mengambil status persentase progress dari seluruh background jobs.
+    """
+    from backend.progress_tracker import get_all_progress
+    return get_all_progress()
+
+
 # ============================================================
 # Serve Static Frontend Dashboard
 # ============================================================
