@@ -73,7 +73,7 @@ struct AIInsightCard: View {
             } else if let err = vm.errorMessage {
                 errorView(message: err)
             } else {
-                loadingView  // fallback: cegah view kosong (zero height)
+                loadingView
             }
         }
         .task { await vm.load(symbol: symbol) }

@@ -46,7 +46,7 @@ struct HomeView: View {
                         .foregroundColor(Color(hex: "EAB308"))
                 }
                 Spacer()
-                ResetButton { vm.resetPortfolio() }
+                NotificationButton { router.push(.notification) }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -434,14 +434,34 @@ struct MiniSparklineView: View {
 
 // MARK: - Reset Button
 
-struct ResetButton: View {
+//struct ResetButton: View {
+//
+//    let action: () -> Void
+//
+//    var body: some View {
+//        Button(role: .destructive, action: action) {
+//            Image(systemName: "trash")
+//                .foregroundColor(.red)
+//        }
+//    }
+//}
+struct NotificationButton: View {
 
     let action: () -> Void
 
     var body: some View {
-        Button(role: .destructive, action: action) {
-            Image(systemName: "trash")
-                .foregroundColor(.red)
+        Button(action: action) {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "bell.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(.primary)
+
+                // Badge notifikasi (opsional, hapus jika tidak perlu)
+                Circle()
+                    .fill(Color(hex: "EF4444"))
+                    .frame(width: 8, height: 8)
+                    .offset(x: 2, y: -2)
+            }
         }
     }
 }
@@ -576,6 +596,7 @@ struct AIInsightCardView: View {
     @State private var targetWords:  [String] = []
     @State private var timer:        Timer?   = nil
     @State private var selectedIndex = 0
+    @State private var isExpanded:   Bool     = false
 
     init() {
         let first = InsightChip(
@@ -590,77 +611,120 @@ struct AIInsightCardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 0) {
 
-            // ── Header badge ──
-            HStack {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(accent)
-                        .frame(width: 7, height: 7)
-                        .scaleEffect(isPulsing ? 0.7 : 1.0)
-                        .animation(.easeInOut(duration: 1).repeatForever(), value: isPulsing)
+            // ── Card Content (clipped to 200px when collapsed) ──
+            VStack(alignment: .leading, spacing: 12) {
+
+                // ── Header badge ──
+                HStack {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(accent)
+                            .frame(width: 7, height: 7)
+                            .scaleEffect(isPulsing ? 0.7 : 1.0)
+                            .animation(.easeInOut(duration: 1).repeatForever(), value: isPulsing)
+                        
+                        Text("AI LIVE")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(accent)
+                            .kerning(0.8)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(accent.opacity(0.12))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(accent.opacity(0.35), lineWidth: 0.5))
+                    .onAppear {
+                        isPulsing = true
+                        startTyping(text: selectedChip.text)
+                    }
                     
-                    Text("AI LIVE")
+                    Spacer()
+                    Text("Updated at 07:00 WIB")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(accent)
                         .kerning(0.8)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(accent.opacity(0.12))
-                .clipShape(Capsule())
-                .overlay(Capsule().strokeBorder(accent.opacity(0.35), lineWidth: 0.5))
-                .onAppear {
-                    isPulsing = true
-                    startTyping(text: selectedChip.text)
+
+                // ── Insight text ──
+                ZStack(alignment: .topLeading) {
+
+                    // Anchor: teks terpanjang, TIDAK PERNAH BERUBAH → container stabil
+                    Text(longestPlainText)
+                        .font(.system(size: 14))
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .opacity(0)
+
+                    // Teks animasi
+                    buildAttributedText(from: displayedText)
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.primary.opacity(0.85))
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                
-                Spacer()
-                Text("Updated at 07:00 WIB")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(accent)
-                    .kerning(0.8)
-            }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .transaction { $0.animation = nil }  // blokir semua animasi SwiftUI pada container ini
 
-            // ── Insight text ──
-            ZStack(alignment: .topLeading) {
-
-                // Anchor: teks terpanjang, TIDAK PERNAH BERUBAH → container stabil
-                Text(longestPlainText)
-                    .font(.system(size: 14))
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .opacity(0)
-
-                // Teks animasi
-                buildAttributedText(from: displayedText)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color.primary.opacity(0.85))
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .transaction { $0.animation = nil }  // blokir semua animasi SwiftUI pada container ini
-
-            // ── Chips ──
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(Array(chips.enumerated()), id: \.element.id) { index, chip in
-                        InsightChipView(
-                            label: chip.label,
-                            isActive: selectedIndex == index,
-                            accent: accent
-                        ) {
-                            selectedIndex = index
-                            selectedChip = chip
-                            startTyping(text: chip.text)
+                // ── Chips ──
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(chips.enumerated()), id: \.element.id) { index, chip in
+                            InsightChipView(
+                                label: chip.label,
+                                isActive: selectedIndex == index,
+                                accent: accent
+                            ) {
+                                selectedIndex = index
+                                selectedChip = chip
+                                startTyping(text: chip.text)
+                            }
                         }
                     }
                 }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            // Collapse ke 200px saat tidak di-expand, fade bottom edge
+            .frame(height: isExpanded ? nil : 150, alignment: .top)
+            .clipped()
+            .overlay(alignment: .bottom) {
+                // Fade gradient — hanya tampil saat collapsed
+                if !isExpanded {
+                    LinearGradient(
+                        colors: [
+                            Color.appCardBackground.opacity(0),
+                            Color.appCardBackground.opacity(0.85),
+                            Color.appCardBackground
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 48)
+                    .allowsHitTesting(false)
+                }
+            }
+
+            // ── Expand / Collapse button ──
+            Button(action: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Text(isExpanded ? "Sembunyikan" : "Baca Selengkapnya")
+                        .font(.system(size: 11, weight: .semibold))
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundColor(accent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(accent.opacity(0.06))
+            }
+            .buttonStyle(.plain)
         }
-        .padding(12)
         .background(Color(hex: "EAB308").opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
@@ -798,6 +862,87 @@ private struct InsightChipView: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct NotificationView: View {
+
+    @EnvironmentObject private var router: Router
+
+    // Dummy data — ganti dengan model notifikasi asli Anda
+    private let notifications: [NotificationItem] = [
+        NotificationItem(id: 1, title: "BBCA naik 2.3%",    body: "Harga BBCA menyentuh Rp 10.250",          time: "5 menit lalu",  isRead: false),
+        NotificationItem(id: 2, title: "Alert Portofolio",  body: "Total portofolio Anda turun 1.2% hari ini", time: "1 jam lalu",    isRead: false),
+        NotificationItem(id: 3, title: "Rekomendasi AI",    body: "BMRI: Sinyal beli terdeteksi",             time: "3 jam lalu",    isRead: true),
+        NotificationItem(id: 4, title: "IHSG Update",       body: "IHSG ditutup di 7.180 (+0.8%)",           time: "Kemarin",       isRead: true),
+    ]
+
+    var body: some View {
+        List {
+            ForEach(notifications) { item in
+                NotificationRowView(item: item)
+                    .listRowBackground(
+                        item.isRead
+                            ? Color.clear
+                            : Color(hex: "FFA500").opacity(0.07)
+                    )
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+            }
+        }
+        .listStyle(.plain)
+        .background(Color.appBackground.ignoresSafeArea())
+        .navigationTitle("Notifikasi")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Model
+
+struct NotificationItem: Identifiable {
+    let id:     Int
+    let title:  String
+    let body:   String
+    let time:   String
+    let isRead: Bool
+}
+
+// MARK: - Row
+
+struct NotificationRowView: View {
+
+    let item: NotificationItem
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(Color(hex: "FFA500").opacity(0.15))
+                    .frame(width: 42, height: 42)
+                Image(systemName: item.isRead ? "bell" : "bell.badge.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(Color(hex: "FFA500"))
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(item.title)
+                        .font(.system(size: 14, weight: item.isRead ? .regular : .semibold))
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Text(item.time)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                Text(item.body)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

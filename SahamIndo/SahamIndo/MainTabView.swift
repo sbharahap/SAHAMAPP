@@ -51,7 +51,11 @@ struct HomeNavigationView: View {
                     case .portfolioDetail(let item):
                         DetailPortfolioPerEmitentView(item: item)
                             .toolbar(.hidden, for: .tabBar)
+                    case .notification:                    // ← tambah ini
+                            NotificationView()
+                                .toolbar(.hidden, for: .tabBar)
                     }
+                
                 }
         }
     }
@@ -72,6 +76,9 @@ struct PortfolioNavigationView: View {
                     case .portfolioDetail(let item):
                         DetailPortfolioPerEmitentView(item: item)
                             .toolbar(.hidden, for: .tabBar)
+                    case .notification:                    // ← tambah ini
+                            NotificationView()
+                                .toolbar(.hidden, for: .tabBar)
                     }
                 }
         }

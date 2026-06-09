@@ -10,6 +10,7 @@ import Combine
 enum Route: Hashable {
     case stockDetail(PortfolioItem)
     case portfolioDetail(PortfolioItem)
+    case notification 
 }
 
 // MARK: - Router
