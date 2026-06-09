@@ -38,7 +38,7 @@ SAHAM_LIST_20 = [
     {"kode": "ICBP", "nama_perusahaan": "Indofood CBP Sukses Makmur Tbk", "sektor": "Consumer Staples", "sub_sektor": "Processed Foods"},
     {"kode": "INDF", "nama_perusahaan": "Indofood Sukses Makmur Tbk", "sektor": "Consumer Staples", "sub_sektor": "Processed Foods"},
     {"kode": "AMRT", "nama_perusahaan": "Sumber Alfaria Trijaya Tbk", "sektor": "Consumer Staples", "sub_sektor": "Supermarkets & Convenience Stores"},
-    {"kode": "GOTO", "nama_perusahaan": "GoTo Gojek Tokopedia Tbk", "sektor": "Technology", "sub_sektor": "Software & IT Services"},
+    {"kode": "GGRM", "nama_perusahaan": "Gudang Garam Tbk", "sektor": "Consumer Staples", "sub_sektor": "Tobacco"},
     {"kode": "BYAN", "nama_perusahaan": "Bayan Resources Tbk", "sektor": "Energy", "sub_sektor": "Coal"},
     {"kode": "KLBF", "nama_perusahaan": "Kalbe Farma Tbk", "sektor": "Healthcare", "sub_sektor": "Pharmaceuticals"},
     {"kode": "ANTM", "nama_perusahaan": "Aneka Tambang Tbk", "sektor": "Basic Materials", "sub_sektor": "Metals & Mining"},

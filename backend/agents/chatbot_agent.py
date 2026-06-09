@@ -175,7 +175,7 @@ _ALIAS_SAHAM: dict[str, str] = {
     "summarecon": "SMRA",
 
     # Teknologi
-    "goto": "GOTO", "gojek": "GOTO", "tokopedia": "GOTO",
+    "ggrm": "GGRM", "gudang garam": "GGRM", "gudanggaram": "GGRM",
     "bukalapak": "BUKA",
 
     # Lainnya

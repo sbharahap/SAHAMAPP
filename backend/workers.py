@@ -43,7 +43,7 @@ SAHAM_DEFAULT = [
     {"kode": "ASII", "nama_perusahaan": "Astra International Tbk", "sektor": "Consumer Discretionary", "sub_sektor": "Automotive"},
     {"kode": "UNVR", "nama_perusahaan": "Unilever Indonesia Tbk", "sektor": "Consumer Staples", "sub_sektor": "Personal Care Product"},
     {"kode": "ADRO", "nama_perusahaan": "Adaro Energy Indonesia Tbk", "sektor": "Energy", "sub_sektor": "Coal"},
-    {"kode": "GOTO", "nama_perusahaan": "GoTo Gojek Tokopedia Tbk", "sektor": "Technology", "sub_sektor": "Software & IT Services"},
+    {"kode": "GGRM", "nama_perusahaan": "Gudang Garam Tbk", "sektor": "Consumer Staples", "sub_sektor": "Tobacco"},
     {"kode": "KLBF", "nama_perusahaan": "Kalbe Farma Tbk", "sektor": "Healthcare", "sub_sektor": "Pharmaceuticals"},
     {"kode": "ANTM", "nama_perusahaan": "Aneka Tambang Tbk", "sektor": "Basic Materials", "sub_sektor": "Metals & Mining"},
     {"kode": "PGAS", "nama_perusahaan": "Perusahaan Gas Negara Tbk", "sektor": "Energy", "sub_sektor": "Utilities"},

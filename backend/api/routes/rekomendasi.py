@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.postgres import get_db_session, ScoringMingguan, Saham
 from backend.config import settings
+from backend.api.routes.data import get_single_stock_price_stats
 
 router = APIRouter(
     prefix="/rekomendasi",
@@ -125,6 +126,9 @@ async def get_rekomendasi_saham(
                 detail=f"Saham '{kode_upper}' belum memiliki data hasil scoring."
             )
 
+        # Ambil harga dan perubahan harga
+        price, change, pct_change = await get_single_stock_price_stats(kode_upper, db)
+
         return {
             "kode_saham": scoring_obj.kode_saham,
             "nama_perusahaan": saham_obj.nama_perusahaan,
@@ -149,6 +153,9 @@ async def get_rekomendasi_saham(
             "alasan": scoring_obj.alasan,
             "data_terbatas": scoring_obj.confidence < 0.4,
             "catatan_data": "Data fundamental atau berita pendukung kurang lengkap di database." if scoring_obj.confidence < 0.4 else "",
+            "price": price,
+            "change": change,
+            "pct_change": pct_change,
         }
 
     except HTTPException:

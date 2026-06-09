@@ -370,26 +370,7 @@ async def analisis_kondisi_pasar(state: ScoringState) -> dict[str, Any]:
     except Exception as ex:
         logger.warning(f"⚠️ Gagal mendapatkan data historis IHSG: {ex}")
 
-    # Load dynamic Ridge weights from JSON if file exists
-    weights_loaded = False
-    ridge_weights_path = "/Users/satriabaladewaharahap/Downloads/SAHAMAPP/backend/data/models/ridge_weights.json"
-    if os.path.exists(ridge_weights_path):
-        try:
-            with open(ridge_weights_path, "r") as wf:
-                weights_dict = json.load(wf)
-            if regime_desc in weights_dict:
-                r_w = weights_dict[regime_desc]
-                fundamental_w = r_w.get("fundamental", fundamental_w)
-                trend_w = r_w.get("trend", trend_w)
-                sektor_w = r_w.get("sektor", sektor_w)
-                risiko_w = r_w.get("risiko", risiko_w)
-                weights_loaded = True
-                logger.info(f"💾 Loaded dynamic Ridge weights for '{regime_desc}' from JSON.")
-        except Exception as ex_load:
-            logger.warning(f"⚠️ Gagal memuat Ridge weights dari JSON: {ex_load}")
-            
-    if not weights_loaded:
-        logger.info(f"⚙️ Using default heuristic weights for '{regime_desc}'.")
+    logger.info(f"⚙️ Using default heuristic weights for '{regime_desc}'.")
 
     # Override ketika ada rilis laporan keuangan baru (fokus fundamental)
     if kondisi["ada_lapkeu_baru"]:

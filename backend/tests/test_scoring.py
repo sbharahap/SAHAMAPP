@@ -310,7 +310,13 @@ class TestScoringEngine(unittest.TestCase):
         # Sentimen harus netral (50)
         self.assertEqual(result["skor_per_saham"][0]["skor_sentimen"], 50.0)
         # Background task pencarian berita harus dipicu
-        mock_create_task.assert_called_once()
+        self.assertTrue(mock_create_task.called)
+        any_news_scrape = any(
+            "scrape_and_index_news_for_emiten" in str(arg)
+            for call in mock_create_task.call_args_list
+            for arg in call[0]
+        )
+        self.assertTrue(any_news_scrape, "scrape_and_index_news_for_emiten should have been called in create_task")
 
 
 if __name__ == "__main__":
