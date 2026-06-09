@@ -281,17 +281,6 @@ struct PortfolioView: View {
                                         .foregroundColor(profit >= 0 ? green : red)
                                 }
                                 .padding(.trailing, 8)
-                                
-                                Button(action: { selectedStockForTrade = item }) {
-                                    Text("Trade")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(.black)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(accent)
-                                        .cornerRadius(6)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                }
                             }
                             .padding(.vertical, 10)
                             .contentShape(Rectangle())
