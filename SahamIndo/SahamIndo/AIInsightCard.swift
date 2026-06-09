@@ -92,7 +92,7 @@ struct AIInsightCard: View {
 
                 Text("AI Insight")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
 
                 Spacer()
 
@@ -112,26 +112,26 @@ struct AIInsightCard: View {
                 } else {
                     Text("Updated: Today at 07:00 WIB")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.secondary)
                         .kerning(0.8)
                 }
             }
 
             // ── Divider ──
             Rectangle()
-                .fill(Color.white.opacity(0.06))
+                .fill(Color.primary.opacity(0.08))
                 .frame(height: 1)
 
             // ── AI Summary text ──
             Text(detail.aiSummary)
                 .font(.system(size: 13, weight: .regular))
-                .foregroundColor(Color.white.opacity(0.78))
+                .foregroundColor(Color.primary.opacity(0.85))
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
 
             // ── Divider ──
             Rectangle()
-                .fill(Color.white.opacity(0.06))
+                .fill(Color.primary.opacity(0.08))
                 .frame(height: 1)
 
             // ── Button: Tanya Chatbot ──
@@ -156,7 +156,7 @@ struct AIInsightCard: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(hex: "1E1D3F"))
+                .fill(Color.appCardBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .strokeBorder(
@@ -180,16 +180,16 @@ struct AIInsightCard: View {
     private var loadingView: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.07)).frame(width: 90, height: 14)
+                RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.08)).frame(width: 90, height: 14)
                 Spacer()
                 RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.07)).frame(width: 100, height: 24)
             }
-            RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.05)).frame(maxWidth: .infinity).frame(height: 12)
-            RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.05)).frame(maxWidth: .infinity).frame(height: 12)
-            RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.05)).frame(width: 200, height: 12)
+            RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)).frame(maxWidth: .infinity).frame(height: 12)
+            RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)).frame(maxWidth: .infinity).frame(height: 12)
+            RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)).frame(width: 200, height: 12)
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(hex: "1E1D3F")))
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.appCardBackground))
         .redacted(reason: .placeholder)
     }
 
@@ -247,12 +247,12 @@ private func cardPreview(sentiment: StockSentiment, summary: String, sector: Str
     VStack(alignment: .leading, spacing: 14) {
         HStack {
             Image(systemName: "sparkles").font(.system(size: 13, weight: .semibold)).foregroundColor(Color(hex: "818CF8"))
-            Text("AI Insight").font(.system(size: 14, weight: .bold)).foregroundColor(.white)
+            Text("AI Insight").font(.system(size: 14, weight: .bold)).foregroundColor(.primary)
             Spacer()
             SentimentPill(stockSentiment: sentiment)
         }
-        Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
-        Text(summary).font(.system(size: 13)).foregroundColor(Color.white.opacity(0.78)).lineSpacing(4)
+        Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
+        Text(summary).font(.system(size: 13)).foregroundColor(Color.primary.opacity(0.85)).lineSpacing(4)
         HStack(spacing: 4) {
             Image(systemName: "building.2").font(.system(size: 10)).foregroundColor(.secondary)
             Text(sector).font(.system(size: 11, weight: .medium)).foregroundColor(.secondary)
@@ -260,7 +260,7 @@ private func cardPreview(sentiment: StockSentiment, summary: String, sector: Str
     }
     .padding(16)
     .background(
-        RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(hex: "1E1D3F"))
+        RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.appCardBackground)
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(LinearGradient(colors: [Color(hex: "818CF8").opacity(0.35), Color(hex: "818CF8").opacity(0.08)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
     )

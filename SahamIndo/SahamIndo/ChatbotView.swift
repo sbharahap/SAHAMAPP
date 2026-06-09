@@ -10,8 +10,8 @@ struct ChatbotView: View {
     @EnvironmentObject var viewModel: ChatbotViewModel
     
     private let accentColor = Color(hex: "FFA500")
-    private let bgColor = Color(hex: "12112e")
-    private let cardColor = Color(hex: "1C1B35")
+    private let bgColor = Color.appBackground
+    private let cardColor = Color.appCardBackground
     
     var body: some View {
         NavigationStack {
@@ -60,7 +60,7 @@ struct ChatbotView: View {
                 }
                 
                 Divider()
-                    .background(Color.white.opacity(0.1))
+                    .background(Color.primary.opacity(0.1))
                 
                 // Quick Suggestion Chips (di atas input bar)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -88,7 +88,7 @@ struct ChatbotView: View {
                     TextField("Tanyakan sesuatu (misal: Sentimen BBRI)...", text: $viewModel.inputText)
                         .padding(14)
                         .background(cardColor)
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                         .cornerRadius(12)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
@@ -154,8 +154,8 @@ struct SuggestionChip: View {
     let action: () -> Void
     
     private let accentColor = Color(hex: "FFA500")
-    private let cardColor = Color(hex: "1C1B35")
-    
+    private let cardColor = Color.appCardBackground
+
     var body: some View {
         Button(action: action) {
             Text(text)
@@ -178,8 +178,8 @@ struct TypingIndicatorView: View {
     @State private var animStep = 0
     let timer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
     
-    private let cardColor = Color(hex: "1C1B35")
-    
+    private let cardColor = Color.appCardBackground
+
     var body: some View {
         HStack(spacing: 5) {
             Circle()
@@ -201,7 +201,7 @@ struct TypingIndicatorView: View {
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
         .onReceive(timer) { _ in
             withAnimation(.easeInOut(duration: 0.25)) {
@@ -216,8 +216,8 @@ struct ChatBubbleView: View {
     let message: ChatMessage
     
     private let accentColor = Color(hex: "FFA500")
-    private let cardColor = Color(hex: "1C1B35")
-    
+    private let cardColor = Color.appCardBackground
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             if message.role == .assistant {
@@ -252,7 +252,7 @@ struct ChatBubbleView: View {
                             }
                         }
                     )
-                    .foregroundColor(.white)
+                    .foregroundColor(message.role == .user ? .white : .primary)
                     .cornerRadius(16)
                     .overlay(
                         Group {
