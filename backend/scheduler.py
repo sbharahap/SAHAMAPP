@@ -20,6 +20,7 @@ from backend.workers import (
     scrape_news_job,
     run_scoring_job,
     update_last_prices_job,
+    warm_up_candles_cache_job,
 )
 from backend.agents.alert_agent import jalankan_monitoring
 
@@ -110,6 +111,19 @@ async def job_last_price_update() -> None:
         logger.error(f"❌ [SCHEDULER] Job 4: Gagal menjalankan update last price: {e}")
 
 
+async def job_warm_up_candles_cache() -> None:
+    """
+    Job 5: Menjalankan pre-warming cache candlestick chart.
+    Dijalankan setiap 15 menit.
+    """
+    logger.info("⏱️ [SCHEDULER] Menjalankan Job 5: Pre-warming Candlestick Cache...")
+    try:
+        await warm_up_candles_cache_job()
+        logger.info("✅ [SCHEDULER] Job 5: Pre-warming Candlestick Cache selesai.")
+    except Exception as e:
+        logger.error(f"❌ [SCHEDULER] Job 5: Gagal menjalankan pre-warming candlestick cache: {e}")
+
+
 # ============================================================
 # Scheduler Lifecycle Control
 # ============================================================
@@ -157,6 +171,15 @@ def setup_scheduler() -> None:
         IntervalTrigger(minutes=30),
         id="last_price_update_job",
         name="Fast Stock Last Price Update (Every 30m)",
+        replace_existing=True,
+    )
+
+    # Job 5: Setiap 15 menit untuk pre-warming candles cache
+    scheduler.add_job(
+        job_warm_up_candles_cache,
+        IntervalTrigger(minutes=15),
+        id="warm_up_candles_cache_job",
+        name="Warm Up Candlestick Cache (Every 15m)",
         replace_existing=True,
     )
 

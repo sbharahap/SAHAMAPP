@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Gagal memuat model embedding BGE-M3: {e}")
 
-    # 4. Jalankan initial scrape secara asinkron agar DB terisi jika masih kosong
+    # 4. Jalankan initial scrape secara asinkron agar DB terisi jika masih kosong, serta pre-warming cache
     async def run_initial_data_gathering():
         async with async_session() as session:
             # Cek data makro & fundamental
@@ -97,6 +97,11 @@ async def lifespan(app: FastAPI):
                 await scrape_fundamental_job()
                 await scrape_news_job()
                 await run_scoring_job()
+
+        # Jalankan pre-warming cache candlestick chart saat startup
+        logger.info("⚡ Menjalankan pre-warming cache candlestick chart saat startup...")
+        from backend.workers import warm_up_candles_cache_job
+        await warm_up_candles_cache_job()
 
     # Jalankan initial gathering di background task
     asyncio.create_task(run_initial_data_gathering())

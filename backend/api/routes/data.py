@@ -118,9 +118,9 @@ async def get_fundamental_saham(
 @router.get("/data/makro/terbaru")
 async def get_makro_terbaru(db: AsyncSession = Depends(get_db_session)):
     """
-    Mengambil snapshot kondisi indikator makroekonomi terkini (BI rate, inflasi, kurs, IHSG).
+    Mengambil snapshot kondisi indikator makroekonomi terkini (BI rate, inflasi, kurs, IHSG, asing net buy).
     """
-    indikator_list = ["bi_rate", "kurs_usd_idr", "ihsg", "inflasi_yoy"]
+    indikator_list = ["bi_rate", "kurs_usd_idr", "ihsg", "inflasi_yoy", "asing_net_buy"]
     makro_data = {}
 
     try:

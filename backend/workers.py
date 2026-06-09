@@ -60,8 +60,13 @@ SAHAM_DEFAULT = [
 
 async def seed_saham_if_empty() -> None:
     """
-    Mengisi data master saham jika tabel saham masih kosong.
+    Mengisi data master saham jika tabel saham masih kosong,
+    serta memastikan semua saham memiliki minimal data fundamental/harga historis.
     """
+    import yfinance as yf
+    from sqlalchemy import func
+    from backend.data.collectors.fundamental_collector import _extract_info_value
+
     logger.info("🌱 Mengecek master data saham...")
     async with async_session() as session:
         result = await session.execute(select(Saham).limit(1))
@@ -82,6 +87,68 @@ async def seed_saham_if_empty() -> None:
             logger.info("🌱 Seeding saham selesai.")
         else:
             logger.info("🌱 Master data saham sudah terisi.")
+
+        # Memastikan kelengkapan data historis untuk setiap emiten
+        logger.info("🌱 Mengecek kelengkapan data fundamental/harga historis emiten...")
+        res_saham = await session.execute(select(Saham))
+        saham_list = res_saham.scalars().all()
+        
+        for s in saham_list:
+            cnt = await session.scalar(
+                select(func.count(Fundamental.id))
+                .where(Fundamental.kode_saham == s.kode)
+            )
+            if cnt < 5:
+                logger.info(f"⏳ Saham {s.kode} hanya memiliki {cnt} record fundamental. Mengambil histori dari yfinance...")
+                try:
+                    ticker_symbol = f"{s.kode}{settings.yfinance_market_suffix}"
+                    ticker = yf.Ticker(ticker_symbol)
+                    
+                    info = ticker.info
+                    roe = _extract_info_value(info, "returnOnEquity")
+                    if roe is not None:
+                        roe = roe * 100.0
+                    eps = _extract_info_value(info, "trailingEps")
+                    pbv = _extract_info_value(info, "priceToBook")
+                    der_raw = _extract_info_value(info, "debtToEquity")
+                    der = der_raw / 100.0 if der_raw is not None else None
+                    market_cap_raw = _extract_info_value(info, "marketCap")
+                    market_cap = market_cap_raw / 1_000_000_000 if market_cap_raw else None
+                    pe_ratio = _extract_info_value(info, "trailingPE")
+                    div_yield = _extract_info_value(info, "dividendYield")
+                    if div_yield is not None:
+                        div_yield = div_yield * 100.0
+                        
+                    hist = ticker.history(period="15d")
+                    if not hist.empty:
+                        inserted = 0
+                        for ts, row in hist.iterrows():
+                            tanggal = ts.date()
+                            stmt_check = select(Fundamental).where(
+                                Fundamental.kode_saham == s.kode,
+                                Fundamental.tanggal == tanggal
+                            )
+                            res_check = await session.execute(stmt_check)
+                            if not res_check.scalar_one_or_none():
+                                new_fund = Fundamental(
+                                    kode_saham=s.kode,
+                                    tanggal=tanggal,
+                                    harga_terakhir=round(float(row["Close"]), 2),
+                                    volume=int(row["Volume"]),
+                                    roe=round(roe, 2) if roe is not None else None,
+                                    eps=round(eps, 2) if eps is not None else None,
+                                    pbv=round(pbv, 2) if pbv is not None else None,
+                                    der=round(der, 2) if der is not None else None,
+                                    market_cap=round(market_cap, 2) if market_cap is not None else None,
+                                    pe_ratio=round(pe_ratio, 2) if pe_ratio is not None else None,
+                                    dividend_yield=round(div_yield, 2) if div_yield is not None else None,
+                                )
+                                session.add(new_fund)
+                                inserted += 1
+                        await session.commit()
+                        logger.info(f"✅ Berhasil menyisipkan {inserted} baris histori untuk {s.kode}")
+                except Exception as e:
+                    logger.error(f"❌ Gagal mengambil histori yfinance untuk {s.kode}: {e}")
 
 
 async def scrape_news_job() -> None:
@@ -461,3 +528,35 @@ async def update_last_prices_job() -> None:
     except Exception as e:
         logger.error(f"❌ Gagal menjalankan job update last price: {e}")
     logger.info("⏰ Background job: Update Last Price selesai.")
+
+
+async def warm_up_candles_cache_job() -> None:
+    """
+    Background job untuk melakukan pre-warming cache candlestick chart (1D, 1W) untuk seluruh emiten.
+    Dijalankan setiap 15 menit sekali untuk memastikan page detail load instan.
+    """
+    logger.info("⏰ Memulai background job: Pre-warming Candlestick Cache...")
+    try:
+        from backend.api.routes.data import fetch_candles_yf
+        
+        # 1. Ambil daftar semua kode saham
+        async with async_session() as session:
+            result = await session.execute(select(Saham.kode))
+            symbols = [row for row in result.scalars().all()]
+            
+        if not symbols:
+            logger.warning("⚠️ Tidak ada kode saham terdaftar untuk pre-warming cache.")
+            return
+            
+        loop = asyncio.get_running_loop()
+        
+        # Pre-warm 1D dan 1W untuk setiap emiten
+        for symbol in symbols:
+            for range_val in ["1D", "1W"]:
+                # Panggil fetch_candles_yf di thread pool agar men-cache datanya
+                await loop.run_in_executor(None, fetch_candles_yf, symbol, range_val)
+                await asyncio.sleep(0.2)  # delay sopan agar tidak di-rate-limit
+                
+        logger.info(f"✅ Pre-warming Candlestick Cache selesai untuk {len(symbols)} saham.")
+    except Exception as e:
+        logger.error(f"❌ Gagal menjalankan pre-warming candlestick cache: {e}")

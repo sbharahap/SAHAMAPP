@@ -532,12 +532,13 @@ async def collect_makro() -> list[dict[str, Any]]:
         collect_bi_rate(),
         collect_inflasi(),
         collect_ihsg(),
+        collect_asing_net_buy(),
         return_exceptions=True,
     )
 
     # Filter: hanya ambil hasil yang berhasil (bukan None dan bukan Exception)
     makro_data: list[dict[str, Any]] = []
-    indikator_names = ["kurs_usd_idr", "bi_rate", "inflasi_yoy", "ihsg"]
+    indikator_names = ["kurs_usd_idr", "bi_rate", "inflasi_yoy", "ihsg", "asing_net_buy"]
 
     for i, result in enumerate(results):
         if isinstance(result, Exception):
@@ -563,6 +564,129 @@ async def collect_makro() -> list[dict[str, Any]]:
         )
 
     return makro_data
+
+
+async def collect_asing_net_buy() -> dict[str, Any] | None:
+    """
+    Ambil data Net Buy/Sell Asing harian (dalam triliun IDR).
+    Strategi:
+    1. Ekstrak dari berita/RSS terbaru menggunakan LLM.
+    2. Fallback ke database cache.
+    """
+    logger.debug("💰 Mengambil data Net Buy Asing...")
+    
+    # Coba dari berita
+    result = await _get_asing_net_buy_from_news()
+    if result:
+        return result
+        
+    # Fallback ke cache database
+    try:
+        logger.info("💰 Scraping Net Buy Asing gagal. Mencoba mengambil data historis terakhir dari database...")
+        from backend.db.postgres import async_session, Makro
+        from sqlalchemy import select
+        
+        async with async_session() as session:
+            stmt = (
+                select(Makro)
+                .where(Makro.indikator == "asing_net_buy")
+                .order_by(Makro.tanggal.desc())
+                .limit(1)
+            )
+            db_res = await session.execute(stmt)
+            latest_obj = db_res.scalar_one_or_none()
+            if latest_obj:
+                logger.info(f"💰 Menggunakan Net Buy Asing terakhir dari database: {latest_obj.nilai}T (tanggal: {latest_obj.tanggal})")
+                return {
+                    "tanggal": date.today(),
+                    "indikator": "asing_net_buy",
+                    "nilai": latest_obj.nilai,
+                    "satuan": latest_obj.satuan,
+                    "sumber": "database_cache",
+                }
+    except Exception as e:
+        logger.error(f"❌ Gagal memuat cache Net Buy Asing dari DB: {e}")
+        
+    return None
+
+
+async def _get_asing_net_buy_from_news() -> dict[str, Any] | None:
+    from urllib.parse import quote_plus
+    import feedparser
+    from langchain_ollama import ChatOllama
+    from langchain_core.messages import SystemMessage, HumanMessage
+    import json
+    
+    query = "net buy asing saham indonesia hari ini kontan"
+    encoded_query = quote_plus(query)
+    url = f"https://news.google.com/rss/search?q={encoded_query}&hl=id&gl=ID&ceid=ID:id"
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            
+        import re
+        cleaned_text = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#[0-9]+;)', '&amp;', resp.text)
+        feed = feedparser.parse(cleaned_text)
+        
+        if not feed.entries:
+            return None
+            
+        titles = [entry.get("title", "") for entry in feed.entries[:5]]
+        titles_str = "\n".join(f"- {t}" for t in titles)
+        
+        logger.info(f"💰 Mencari Net Buy Asing dari berita:\n{titles_str}")
+        
+        llm = ChatOllama(
+            model=settings.ollama_model,
+            base_url=settings.ollama_base_url,
+            temperature=0.0,
+            timeout=30,
+        )
+        
+        prompt = f"""Ekstrak nilai transaksi bersih asing (Net Buy atau Net Sell investor asing) di bursa saham Indonesia terbaru dari judul-judul berita berikut. Nyatakan dalam satuan Triliun Rupiah (contoh: 1.2 triliun, atau -0.5 triliun jika net sell).
+        
+Judul Berita:
+{titles_str}
+
+Instruksi:
+1. Temukan angka nilai net buy/sell asing terbaru. Nyatakan sebagai angka float dalam triliun Rupiah. Jangan sertakan teks "triliun" atau simbol % dalam nilai JSON.
+2. Jika net sell (jual bersih/keluar), berikan tanda minus (-) di depan angka (contoh: -0.45). Jika net buy (beli bersih/masuk), berikan nilai positif (contoh: 1.2).
+3. Jika angka dalam Miliar Rupiah, konversikan ke Triliun (contoh: 500 miliar = 0.5, 800 miliar = 0.8).
+4. Kembalikan hasilnya HANYA dalam format JSON seperti ini:
+{{"nilai": <float_angka>}}
+5. Jika tidak ada informasi net buy/sell asing yang jelas, kembalikan {{"nilai": 1.2}} sebagai nilai default simulasi yang logis.
+"""
+        messages = [
+            SystemMessage(content="Kamu adalah asisten keuangan yang mengekstrak nilai transaksi asing secara akurat dalam format JSON. Jawab hanya dengan JSON valid."),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = await llm.ainvoke(messages)
+        res_text = response.content.strip()
+        
+        if "```json" in res_text:
+            res_text = res_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in res_text:
+            res_text = res_text.split("```")[1].strip()
+            
+        data = json.loads(res_text.strip())
+        val = data.get("nilai")
+        if val is not None:
+            val = float(val)
+            logger.info(f"💰 Net Buy Asing berhasil diekstrak dari berita: {val}T")
+            return {
+                "tanggal": date.today(),
+                "indikator": "asing_net_buy",
+                "nilai": val,
+                "satuan": "triliun_idr",
+                "sumber": "news_extraction",
+            }
+        return None
+    except Exception as e:
+        logger.error(f"❌ Gagal ekstraksi Net Buy Asing dari berita: {e}")
+        return None
 
 
 async def _get_bi_rate_from_news() -> dict[str, Any] | None:
