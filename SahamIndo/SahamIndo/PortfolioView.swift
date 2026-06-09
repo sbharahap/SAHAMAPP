@@ -450,20 +450,11 @@ struct PortfolioView: View {
                                     .fixedSize(horizontal: true, vertical: false)
                             }
                             .padding(.trailing, 8)
-                            
-                            Button(action: { selectedStockForTrade = item }) {
-                                Text("Trade")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.black)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(accent)
-                                    .cornerRadius(6)
-                                    .fixedSize(horizontal: true, vertical: false)
-                            }
                         }
                         .padding(.vertical, 10)
-                        
+                        .contentShape(Rectangle())
+                        .onTapGesture { router.push(.stockDetail(item)) }
+
                         if item.symbol != aiRecommendations.last?.symbol {
                             Divider().background(Color.primary.opacity(0.08))
                         }
