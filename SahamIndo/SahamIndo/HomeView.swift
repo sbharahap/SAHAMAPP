@@ -21,9 +21,22 @@ struct HomeView: View {
                 AIInsightCardView()
                     .padding(.vertical, 12)
                 
-                AIFeatureCardsView()
+                //AIFeatureCardsView()
+                HStack {
+                    Text("20 Bluechip Stock's")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 6)
                 
                 Divider()
+                    .frame(height: 1.5)
+                    .background(Color(hex: "EAB308"))
+                    .padding(.horizontal)
+
                 
                 StockListView(
                     items: vm.items,
@@ -31,7 +44,7 @@ struct HomeView: View {
                 )
             }
         }
-       .background(Color.appBackground.ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top) {
@@ -185,10 +198,10 @@ struct StockRowView: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                 }
-                .foregroundColor(stock.change >= 0 ? Color(hex: "22C55E") : Color(hex: "EF4444"))
+                .foregroundColor(stock.change >= 0 ? Color(hex: "00D4AA") : Color(hex: "FF4757"))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background((stock.change >= 0 ? Color(hex: "22C55E") : Color(hex: "EF4444")).opacity(0.1))
+                .background((stock.change >= 0 ? Color(hex: "00D4AA") : Color(hex: "FF4757")).opacity(0.1))
                 .clipShape(Capsule())
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -303,8 +316,8 @@ struct MiniSparklineView: View {
 
     @StateObject private var chartVM = StockChartViewModel()
 
-    private let green = Color(hex: "22C55E")
-    private let red   = Color(hex: "EF4444")
+    private let green = Color(hex: "00D4AA")
+    private let red   = Color(hex: "FF4757")
 
     private var points: [StockDataPoint] { chartVM.dataPoints }
     
@@ -669,6 +682,7 @@ struct AIInsightCardView: View {
                         .transaction { $0.animation = nil }
 
                     // Tombol "Baca selengkapnya" — muncul 2 detik setelah chip dipilih, hanya jika teks panjang
+                    // SESUDAH — tambahkan .frame(maxWidth: .infinity, alignment: .trailing)
                     if isLongText && showReadMore {
                         Button(action: {
                             withAnimation(.easeInOut(duration: 0.25)) {
@@ -682,6 +696,7 @@ struct AIInsightCardView: View {
                                     .font(.system(size: 9, weight: .bold))
                             }
                             .foregroundColor(accent)
+                            .frame(maxWidth: .infinity, alignment: .trailing) // ← tambah ini
                         }
                         .buttonStyle(.plain)
                         .transition(.opacity)
