@@ -9,8 +9,9 @@ import SwiftUI
 
 struct HomeView: View {
 
-    @EnvironmentObject private var vm:     PortfolioViewModel
-    @EnvironmentObject private var router: Router
+    @EnvironmentObject private var vm:      PortfolioViewModel
+    @EnvironmentObject private var router:  Router
+    @EnvironmentObject private var notifVM: NotificationViewModel
 
     var body: some View {
         ScrollView {
@@ -46,7 +47,7 @@ struct HomeView: View {
                         .foregroundColor(Color(hex: "EAB308"))
                 }
                 Spacer()
-                NotificationButton { router.push(.notification) }
+                NotificationButton(unreadCount: notifVM.unreadCount) { router.push(.notification) }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -54,6 +55,7 @@ struct HomeView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { await vm.fetchData() }
+        .task { await notifVM.checkForAlerts() }
         .onAppear {
             UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(Color(hex: "FFA500"))
             UISegmentedControl.appearance().setTitleTextAttributes(
@@ -447,6 +449,7 @@ struct MiniSparklineView: View {
 //}
 struct NotificationButton: View {
 
+    let unreadCount: Int
     let action: () -> Void
 
     var body: some View {
@@ -456,11 +459,17 @@ struct NotificationButton: View {
                     .font(.system(size: 20))
                     .foregroundColor(.primary)
 
-                // Badge notifikasi (opsional, hapus jika tidak perlu)
-                Circle()
-                    .fill(Color(hex: "EF4444"))
-                    .frame(width: 8, height: 8)
-                    .offset(x: 2, y: -2)
+                if unreadCount > 0 {
+                    ZStack {
+                        Circle()
+                            .fill(Color(hex: "EF4444"))
+                            .frame(width: 16, height: 16)
+                        Text(unreadCount > 9 ? "9+" : "\(unreadCount)")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .offset(x: 6, y: -6)
+                }
             }
         }
     }
@@ -865,91 +874,11 @@ private struct InsightChipView: View {
     }
 }
 
-struct NotificationView: View {
-
-    @EnvironmentObject private var router: Router
-
-    // Dummy data — ganti dengan model notifikasi asli Anda
-    private let notifications: [NotificationItem] = [
-        NotificationItem(id: 1, title: "BBCA naik 2.3%",    body: "Harga BBCA menyentuh Rp 10.250",          time: "5 menit lalu",  isRead: false),
-        NotificationItem(id: 2, title: "Alert Portofolio",  body: "Total portofolio Anda turun 1.2% hari ini", time: "1 jam lalu",    isRead: false),
-        NotificationItem(id: 3, title: "Rekomendasi AI",    body: "BMRI: Sinyal beli terdeteksi",             time: "3 jam lalu",    isRead: true),
-        NotificationItem(id: 4, title: "IHSG Update",       body: "IHSG ditutup di 7.180 (+0.8%)",           time: "Kemarin",       isRead: true),
-    ]
-
-    var body: some View {
-        List {
-            ForEach(notifications) { item in
-                NotificationRowView(item: item)
-                    .listRowBackground(
-                        item.isRead
-                            ? Color.clear
-                            : Color(hex: "FFA500").opacity(0.07)
-                    )
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-            }
-        }
-        .listStyle(.plain)
-        .background(Color.appBackground.ignoresSafeArea())
-        .navigationTitle("Notifikasi")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-// MARK: - Model
-
-struct NotificationItem: Identifiable {
-    let id:     Int
-    let title:  String
-    let body:   String
-    let time:   String
-    let isRead: Bool
-}
-
-// MARK: - Row
-
-struct NotificationRowView: View {
-
-    let item: NotificationItem
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(Color(hex: "FFA500").opacity(0.15))
-                    .frame(width: 42, height: 42)
-                Image(systemName: item.isRead ? "bell" : "bell.badge.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(Color(hex: "FFA500"))
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(item.title)
-                        .font(.system(size: 14, weight: item.isRead ? .regular : .semibold))
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Text(item.time)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                Text(item.body)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
 #Preview {
     NavigationStack {
         HomeView()
             .environmentObject(PortfolioViewModel())
             .environmentObject(Router())
+            .environmentObject(NotificationViewModel())
     }
 }
