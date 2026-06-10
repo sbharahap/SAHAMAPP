@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - HomeView
 
@@ -21,9 +22,22 @@ struct HomeView: View {
                 AIInsightCardView()
                     .padding(.vertical, 12)
                 
-                AIFeatureCardsView()
+                //AIFeatureCardsView()
+                HStack {
+                    Text("20 Bluechip Stock's")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 6)
                 
                 Divider()
+                    .frame(height: 1.5)
+                    .background(Color(hex: "EAB308"))
+                    .padding(.horizontal)
+
                 
                 StockListView(
                     items: vm.items,
@@ -31,7 +45,7 @@ struct HomeView: View {
                 )
             }
         }
-       .background(Color.appBackground.ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top) {
@@ -186,10 +200,10 @@ struct StockRowView: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                 }
-                .foregroundColor(stock.change >= 0 ? Color(hex: "22C55E") : Color(hex: "EF4444"))
+                .foregroundColor(stock.change >= 0 ? Color(hex: "00D4AA") : Color(hex: "FF4757"))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background((stock.change >= 0 ? Color(hex: "22C55E") : Color(hex: "EF4444")).opacity(0.1))
+                .background((stock.change >= 0 ? Color(hex: "00D4AA") : Color(hex: "FF4757")).opacity(0.1))
                 .clipShape(Capsule())
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -295,6 +309,8 @@ struct SentimentBarView: View {
 //   • Fallback ke IDXDummyPriceGenerator jika API tidak bisa diakses
 // Hasilnya konsisten dengan chart 1D di halaman detail saham.
 
+// MARK: - Mini Sparkline Chart (1D)
+
 struct MiniSparklineView: View {
 
     let symbol:     String
@@ -302,12 +318,15 @@ struct MiniSparklineView: View {
 
     @StateObject private var chartVM = StockChartViewModel()
 
-    private let green = Color(hex: "22C55E")
-    private let red   = Color(hex: "EF4444")
+    private let green = Color(hex: "00D4AA")
+    private let red   = Color(hex: "FF4757")
 
     private var points: [StockDataPoint] { chartVM.dataPoints }
+    
 
     var body: some View {
+        let slotIndices: [Int] = points.map { chartVM.oneDaySlotIndex(for: $0.date) }
+
         Canvas { ctx, size in
             guard points.count > 1 else { return }
 
@@ -321,16 +340,18 @@ struct MiniSparklineView: View {
             let padV:    CGFloat = 4
             let usableH  = h - padV * 2
 
+            // ── X berdasarkan slot index (proporsional terhadap waktu) ──────
+            // Slot 0 = 09:00, slot 86 = 16:10. Titik terakhir berhenti
+            // di posisi waktu sekarang, bukan selalu di ujung kanan.
             func xFor(_ i: Int) -> CGFloat {
-                CGFloat(i) / CGFloat(closes.count - 1) * w
-            }
+                        CGFloat(slotIndices[i]) / CGFloat(StockChartViewModel.oneDayTotalSlots - 1) * w
+                    }
             func yFor(_ v: Double) -> CGFloat {
                 padV + usableH * (1 - (v - minVal) / range)
             }
 
             let startY = yFor(startVal)
 
-            // ── Helper: build area path closing to a given baseline Y ──
             func buildAreaPath(closeY: CGFloat) -> Path {
                 var p = Path()
                 p.move(to: CGPoint(x: xFor(0), y: closeY))
@@ -350,7 +371,6 @@ struct MiniSparklineView: View {
                 return p
             }
 
-            // ── Helper: build full line path ──
             func buildLinePath() -> Path {
                 var p = Path()
                 for i in 0..<closes.count {
@@ -370,10 +390,8 @@ struct MiniSparklineView: View {
             let redAreaPath   = buildAreaPath(closeY: h)
             let linePath      = buildLinePath()
 
-            // ── Area & line: green above startY, red below startY ──
             let lineStyle = StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round)
 
-            // Green: fade dari startY ke atas
             ctx.drawLayer { layer in
                 layer.clip(to: Path(CGRect(x: 0, y: 0, width: w, height: startY)))
                 layer.fill(greenAreaPath, with: .linearGradient(
@@ -387,7 +405,6 @@ struct MiniSparklineView: View {
                 layer.stroke(linePath, with: .color(green), style: lineStyle)
             }
 
-            // Red: fade dari startY ke bawah
             ctx.drawLayer { layer in
                 layer.clip(to: Path(CGRect(x: 0, y: startY, width: w, height: h - startY)))
                 layer.fill(redAreaPath, with: .linearGradient(
@@ -401,7 +418,7 @@ struct MiniSparklineView: View {
                 layer.stroke(linePath, with: .color(red), style: lineStyle)
             }
 
-            // ── Baseline dashed line at startY ──
+            // Baseline
             var basePath = Path()
             basePath.move(to: CGPoint(x: 0, y: startY))
             basePath.addLine(to: CGPoint(x: w, y: startY))
@@ -409,7 +426,7 @@ struct MiniSparklineView: View {
                        with: .color(Color.primary.opacity(0.15)),
                        style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
 
-            // ── Dashed last-price horizontal line ──
+            // Last-price dashed line & dot
             let lastY = yFor(closes.last!)
             let lastColor = closes.last! >= startVal ? green : red
             var dashPath = Path()
@@ -419,7 +436,6 @@ struct MiniSparklineView: View {
                        with: .color(lastColor.opacity(0.5)),
                        style: StrokeStyle(lineWidth: 0.75, dash: [3, 3]))
 
-            // ── Last-price dot ──
             let dotX = xFor(closes.count - 1)
             let dotR: CGFloat = 2.5
             ctx.fill(Path(ellipseIn: CGRect(x: dotX - dotR, y: lastY - dotR,
@@ -427,9 +443,15 @@ struct MiniSparklineView: View {
                      with: .color(lastColor))
         }
         .task(id: symbol) {
-            chartVM.symbol      = symbol
+            chartVM.symbol        = symbol
             chartVM.selectedRange = .oneDay
             await chartVM.fetchData()
+        }
+        // ── Auto-refresh tiap 5 menit (sama dengan interval slot 1D) ──
+        .onReceive(
+            Timer.publish(every: 5 * 60, on: .main, in: .common).autoconnect()
+        ) { _ in
+            Task { await chartVM.fetchData() }
         }
     }
 }
@@ -674,6 +696,7 @@ struct AIInsightCardView: View {
                         .transaction { $0.animation = nil }
 
                     // Tombol "Baca selengkapnya" — muncul 2 detik setelah chip dipilih, hanya jika teks panjang
+                    // SESUDAH — tambahkan .frame(maxWidth: .infinity, alignment: .trailing)
                     if isLongText && showReadMore {
                         Button(action: {
                             withAnimation(.easeInOut(duration: 0.25)) {
@@ -687,6 +710,7 @@ struct AIInsightCardView: View {
                                     .font(.system(size: 9, weight: .bold))
                             }
                             .foregroundColor(accent)
+                            .frame(maxWidth: .infinity, alignment: .trailing) // ← tambah ini
                         }
                         .buttonStyle(.plain)
                         .transition(.opacity)
