@@ -26,6 +26,7 @@ struct APIClient {
         }
         
         let candidates = [
+            "http://10.67.50.204:8080",
             "http://10.67.51.0:8080",
             "http://localhost:8080",
             "http://127.0.0.1:8080",
@@ -238,6 +239,16 @@ struct RekomendasiResponseDTO: Decodable {
     let rekomendasi: [RekomendasiItemDTO]
 }
 
+struct AIMarketInsightDTO: Decodable {
+    let text: String
+    let updatedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case text
+        case updatedAt = "updated_at"
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // MARK: - Real Stock Service
 // ─────────────────────────────────────────────────────────────
@@ -280,6 +291,18 @@ final class RealStockService: StockServiceProtocol {
 
     func fetchRekomendasiMingguan() async throws -> RekomendasiResponseDTO {
         return try await APIClient.get("/rekomendasi/mingguan", as: RekomendasiResponseDTO.self)
+    }
+
+    func fetchSentimenBeritaInsight() async throws -> AIMarketInsightDTO {
+        return try await APIClient.get("/ai/insights/sentimen-berita", as: AIMarketInsightDTO.self)
+    }
+
+    func fetchAsingNetBuyInsight() async throws -> AIMarketInsightDTO {
+        return try await APIClient.get("/ai/insights/asing-net-buy", as: AIMarketInsightDTO.self)
+    }
+
+    func fetchMakroIDRInsight() async throws -> AIMarketInsightDTO {
+        return try await APIClient.get("/ai/insights/makro-idr", as: AIMarketInsightDTO.self)
     }
 }
 
