@@ -707,26 +707,30 @@ async def generate_jawaban(state: ChatState) -> dict[str, Any]:
     # ─── Bangun prompt ───
     system_prompt = f"""Kamu adalah asisten analis saham Indonesia yang cerdas dan ramah.
 
-ATURAN MENJAWAB:
-1. Jawab dalam Bahasa Indonesia yang natural dan mudah dipahami
-2. Maksimal {word_limit} kata, padat dan informatif
-3. Gunakan data angka jika tersedia, jangan pernah mengarang data saham/angka
-4. Jika data tidak tersedia, sampaikan dengan jujur
-5. Sertakan disclaimer singkat bahwa ini bukan saran investasi profesional
-6. {instruksi}
-7. Akhiri jawaban dengan baris baru dan tulis confidence score-mu (0.0-1.0) dalam format: [CONFIDENCE: X.X]
+ATURAN UTAMA — WAJIB DIPATUHI:
+1. Jawab HANYA berdasarkan informasi yang ada di DOKUMEN REFERENSI dan DATA SAHAM yang diberikan di bawah.
+2. DILARANG KERAS mengarang, menambah, atau mengasumsikan data angka (harga, ROE, PBV, laba, dll) yang tidak tercantum dalam konteks.
+3. Jika data yang dibutuhkan TIDAK ADA dalam konteks, katakan secara eksplisit: "Data [X] tidak tersedia dalam referensi saat ini."
+4. Jangan menggunakan pengetahuan umum tentang saham di luar dokumen yang diberikan.
 
-PENTING:
-- Jangan gunakan format markdown kompleks, tulis dalam paragraf/list yang natural dan rapi
-- Jika ada data scoring, sebutkan skor dan rekomendasinya
-- Jawab langsung pertanyaan user, jangan bertele-tele
+ATURAN FORMAT:
+5. Jawab dalam Bahasa Indonesia yang natural dan mudah dipahami
+6. Maksimal {word_limit} kata, padat dan informatif
+7. Jangan gunakan format markdown kompleks
+8. Sertakan disclaimer singkat bahwa ini bukan saran investasi profesional
+9. {instruksi}
+10. Akhiri jawaban dengan baris baru dan tulis confidence score-mu (0.0-1.0) dalam format: [CONFIDENCE: X.X]
+    - Berikan confidence tinggi (>0.7) HANYA jika dokumen relevan mendukung jawaban secara langsung
+    - Berikan confidence rendah (<0.5) jika dokumen kurang relevan atau data tidak lengkap
 
 /no_think"""
 
     user_prompt = f"""{konteks_riwayat}{konteks_angka}
 {konteks_docs}
 PERTANYAAN USER:
-{pertanyaan}"""
+{pertanyaan}
+
+INGAT: Jawab hanya berdasarkan DOKUMEN REFERENSI dan DATA SAHAM di atas. Jika data tidak ada, katakan tidak tersedia."""
 
     # ─── Panggil LLM ───
     try:
@@ -747,11 +751,16 @@ PERTANYAAN USER:
             f"confidence={confidence:.2f})"
         )
 
-        # RAG Triad Evaluasi (Kasus 6)
+        # RAG Triad Evaluasi (fire-and-forget, batch_id="live" untuk tracking)
         if dokumen:
             contexts_list = [doc.get("teks", "") for doc in dokumen[:7]]
             from backend.rag.evaluator import evaluasi_rag_triad
-            asyncio.create_task(evaluasi_rag_triad(pertanyaan, contexts_list, jawaban))
+            asyncio.create_task(
+                evaluasi_rag_triad(
+                    pertanyaan, contexts_list, jawaban,
+                    batch_id="live", simpan_ke_db=True,
+                )
+            )
 
         return {
             "jawaban_draft": jawaban,
