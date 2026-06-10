@@ -605,6 +605,7 @@ struct AIInsightCardView: View {
     @State private var selectedIndex  = 0
     @State private var isExpanded:    Bool     = false
     @State private var showReadMore:  Bool     = false
+    @State private var lastUpdated:   Date?    = nil
     init() {
         let first = InsightChip(
             label: "Analisis Teknikal",
@@ -648,10 +649,14 @@ struct AIInsightCardView: View {
                     }
                     
                     Spacer()
-                    Text("Updated at 07:00 WIB")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(accent)
-                        .kerning(0.8)
+                    if let date = lastUpdated {
+                        TimelineView(.periodic(from: Date(), by: 60)) { context in
+                            Text("Last updated: \(timeAgoString(from: date, now: context.date))")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(accent)
+                                .kerning(0.8)
+                        }
+                    }
                 }
 
                 // ── Insight text ──
@@ -732,52 +737,93 @@ struct AIInsightCardView: View {
 
     private func loadLiveInsights() async {
         let service = RealStockService()
-        
-        // 1. Fetch Makro
-        var makroText = "Rupiah menguat ke **Rp 15.820/USD** didukung surplus neraca dagang. **BI** diprediksi tahan suku bunga bulan ini."
-        var asingText = "Investor asing net buy **Rp 1,2 triliun** hari ini. Sektor **energi & infrastruktur** jadi pilihan utama."
-        if let makro = try? await service.fetchMakro() {
-            let bi = makro.indikator["bi_rate"]?.nilai ?? 6.25
-            let usd = makro.indikator["kurs_usd_idr"]?.nilai ?? 16210.0
-            let inflasi = makro.indikator["inflasi_yoy"]?.nilai ?? 2.8
-            let ihsg = makro.indikator["ihsg"]?.nilai ?? 7180.5
-            makroText = "IHSG berada di level **\(String(format: "%.1f", ihsg))**. Nilai tukar rupiah terhadap USD sebesar **Rp \(String(format: "%.0f", usd))**. BI Rate sebesar **\(String(format: "%.2f", bi))%**, dan Inflasi YoY sebesar **\(String(format: "%.2f", inflasi))%**."
-            
-            if let asingObj = makro.indikator["asing_net_buy"] {
-                let val = asingObj.nilai
-                if val < 0 {
-                    asingText = "Investor asing mencatatkan net sell sebesar **Rp \(String(format: "%.1f", abs(val))) triliun** hari ini di pasar saham Indonesia."
-                } else {
-                    asingText = "Investor asing mencatatkan net buy sebesar **Rp \(String(format: "%.1f", val)) triliun** hari ini di pasar saham Indonesia."
-                }
-            }
+
+        // Fetch all sources in parallel; AI endpoints take priority, real data used as fallback
+        async let sentimenAIFetch = service.fetchSentimenBeritaInsight()
+        async let asingAIFetch    = service.fetchAsingNetBuyInsight()
+        async let makroAIFetch    = service.fetchMakroIDRInsight()
+        async let makroFetch      = service.fetchMakro()
+        async let alertsFetch     = service.fetchAlerts()
+        async let rekFetch        = service.fetchRekomendasiMingguan()
+
+        let sentimenAI = try? await sentimenAIFetch
+        let asingAI    = try? await asingAIFetch
+        let makroAI    = try? await makroAIFetch
+        let makroData  = try? await makroFetch
+        let alertsData = try? await alertsFetch
+        let rekData    = try? await rekFetch
+
+        // ── Analisis Teknikal: AI via /rekomendasi/mingguan ──
+        let teknikalText: String
+        if let top = rekData?.rekomendasi.first {
+            let alasan = (top.alasan ?? "")
+                .components(separatedBy: "⚠️Catatan:").first?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            teknikalText = "Rekomendasi utama minggu ini: **\(top.kode_saham)** (\(top.rekomendasi)). \(alasan)"
+        } else {
+            teknikalText = "Data rekomendasi teknikal sedang diperbarui."
         }
-        
-        // 2. Fetch Alerts for Sentimen Berita
-        var sentimenText = "Sentimen media sosial terhadap **GGRM** meningkat signifikan. Buzz positif naik **34%** dalam 48 jam terakhir."
-        if let alerts = try? await service.fetchAlerts(), let latestAlert = alerts.first {
-            sentimenText = latestAlert.pesan
+
+        // ── Sentimen Berita: AI → aggregate alerts → rekomendasi distribution → unavailable ──
+        let sentimenText: String
+        if let aiText = sentimenAI?.text, !aiText.isEmpty {
+            sentimenText = aiText
+        } else if let alerts = alertsData, !alerts.isEmpty {
+            let positives = alerts.filter { $0.delta > 0 }.count
+            let negatives = alerts.filter { $0.delta < 0 }.count
+            let topNames  = alerts.prefix(3).map { "**\($0.kode_saham)**" }.joined(separator: ", ")
+            sentimenText = "Terdeteksi **\(alerts.count) sinyal** perubahan sentimen hari ini — **\(positives) positif**, **\(negatives) negatif**. Saham terpantau: \(topNames)."
+        } else if let rek = rekData, !rek.rekomendasi.isEmpty {
+            let buy     = rek.rekomendasi.filter { ["RECOMMENDED","BUY"].contains($0.rekomendasi.uppercased()) }.count
+            let caution = rek.rekomendasi.filter { ["CAUTION","SELL","NEGATIVE"].contains($0.rekomendasi.uppercased()) }.count
+            let neutral = rek.rekomendasi.count - buy - caution
+            sentimenText = "Sentimen pasar minggu ini: **\(buy) saham** direkomendasikan beli, **\(caution)** caution, **\(neutral)** netral."
+        } else {
+            sentimenText = "Data sentimen berita sedang diperbarui."
         }
-        
-        // 3. Fetch Rekomendasi Mingguan for Analisis Teknikal / Rekomendasi
-        var teknikalText = "Sektor **perbankan** menunjukkan momentum positif pasca data inflasi. **BBCA & BBRI** berpotensi retest resistance minggu ini."
-        if let rec = try? await service.fetchRekomendasiMingguan(), let top = rec.rekomendasi.first {
-            let symbol = top.kode_saham
-            let recType = top.rekomendasi
-            let alasan = top.alasan ?? ""
-            teknikalText = "Rekomendasi utama minggu ini: **\(symbol)** (\(recType)). Alasan: \(alasan)"
+
+        // ── Asing Net Buy: AI → macro asing_net_buy key → IHSG+kurs proxy → unavailable ──
+        let asingText: String
+        if let aiText = asingAI?.text, !aiText.isEmpty {
+            asingText = aiText
+        } else if let asingObj = makroData?.indikator["asing_net_buy"] {
+            let val = asingObj.nilai
+            asingText = val < 0
+                ? "Investor asing mencatatkan net sell sebesar **Rp \(String(format: "%.1f", abs(val))) triliun** hari ini di pasar saham Indonesia."
+                : "Investor asing mencatatkan net buy sebesar **Rp \(String(format: "%.1f", val)) triliun** hari ini di pasar saham Indonesia."
+        } else if let makro = makroData,
+                  let ihsg = makro.indikator["ihsg"]?.nilai,
+                  let usd  = makro.indikator["kurs_usd_idr"]?.nilai {
+            asingText = "IHSG saat ini di level **\(String(format: "%.1f", ihsg))** dengan kurs USD/IDR **Rp \(String(format: "%.0f", usd))**. Data aliran dana asing sedang diperbarui."
+        } else {
+            asingText = "Data aliran dana asing sedang diperbarui."
         }
-        
-        // Update the chips
+
+        // ── Makro IDR: AI → real indicators (only show keys that exist) → unavailable ──
+        let makroText: String
+        if let aiText = makroAI?.text, !aiText.isEmpty {
+            makroText = aiText
+        } else if let makro = makroData {
+            var parts: [String] = []
+            if let v = makro.indikator["ihsg"]?.nilai         { parts.append("IHSG di level **\(String(format: "%.1f", v))**") }
+            if let v = makro.indikator["kurs_usd_idr"]?.nilai { parts.append("kurs USD/IDR **Rp \(String(format: "%.0f", v))**") }
+            if let v = makro.indikator["bi_rate"]?.nilai      { parts.append("BI Rate **\(String(format: "%.2f", v))%**") }
+            if let v = makro.indikator["inflasi_yoy"]?.nilai  { parts.append("inflasi YoY **\(String(format: "%.2f", v))%**") }
+            makroText = parts.isEmpty ? "Data makro sedang diperbarui." : parts.joined(separator: ", ") + "."
+        } else {
+            makroText = "Data makro sedang diperbarui."
+        }
+
         let newChips = [
             InsightChip(label: "Analisis Teknikal", text: teknikalText),
-            InsightChip(label: "Sentimen Berita", text: sentimenText),
-            InsightChip(label: "Asing Net Buy", text: asingText),
-            InsightChip(label: "Makro IDR", text: makroText)
+            InsightChip(label: "Sentimen Berita",   text: sentimenText),
+            InsightChip(label: "Asing Net Buy",     text: asingText),
+            InsightChip(label: "Makro IDR",         text: makroText)
         ]
-        
+
         await MainActor.run {
-            self.chips = newChips
+            self.chips       = newChips
+            self.lastUpdated = Date()
             if selectedIndex < chips.count {
                 selectedChip = chips[selectedIndex]
                 startTyping(text: selectedChip.text)
@@ -824,6 +870,17 @@ struct AIInsightCardView: View {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+    }
+
+    // MARK: - Relative time helper
+
+    private func timeAgoString(from date: Date, now: Date = Date()) -> String {
+        let diff = Int(now.timeIntervalSince(date))
+        if diff < 60 { return "baru saja" }
+        let mins = diff / 60
+        if mins < 60 { return "\(mins) mnt lalu" }
+        let hours = mins / 60
+        return "\(hours) jam lalu"
     }
 
     // MARK: - Bold keyword helper
