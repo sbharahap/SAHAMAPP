@@ -12,21 +12,23 @@ import Combine
 final class PortfolioViewModel: ObservableObject {
 
     // MARK: - Published
-    @Published private(set) var items:    [PortfolioItem] = []
-    @Published private(set) var holdings: [Holding]      = []
-    @Published private(set) var isLoading: Bool           = false
-    @Published var errorMessage: String?                  = nil
+    @Published private(set) var items:        [PortfolioItem] = []
+    @Published private(set) var holdings:     [Holding]      = []
+    @Published private(set) var tradeHistory: [TradeRecord]  = []
+    @Published private(set) var isLoading:    Bool           = false
+    @Published var errorMessage: String?                     = nil
     @Published var cacheState: CacheState = .live
-    
+
     @Published var cashBalance: Double = 50_000_000.0
     @Published var totalDepositedCash: Double = 50_000_000.0
 
     // MARK: - Private
-    private let service:    StockServiceProtocol
-    private let realService = RealStockService()
-    private let storageKey  = "portfolio_holdings_idn_v4"
-    private let cashKey     = "portfolio_cash_balance_v4"
-    private let depositedKey = "portfolio_deposited_cash_v4"
+    private let service:         StockServiceProtocol
+    private let realService      = RealStockService()
+    private let storageKey       = "portfolio_holdings_idn_v4"
+    private let cashKey          = "portfolio_cash_balance_v4"
+    private let depositedKey     = "portfolio_deposited_cash_v4"
+    private let tradeHistoryKey  = "portfolio_trade_history_v1"
 
     // MARK: - Computed
     var totalValue: Double { items.reduce(0) { $0 + $1.value } }
@@ -44,12 +46,14 @@ final class PortfolioViewModel: ObservableObject {
         self.service = DummyStockService()
         loadHoldings()
         loadCash()
+        loadTradeHistory()
     }
 
     init(service: StockServiceProtocol) {
         self.service = service
         loadHoldings()
         loadCash()
+        loadTradeHistory()
     }
 
     // MARK: - Fetch (sekarang pakai RealStockService)
@@ -216,9 +220,15 @@ final class PortfolioViewModel: ObservableObject {
         } else {
             holdings.append(Holding(symbol: symbol, quantity: qty, totalCostBasis: cost, purchaseDate: Date()))
         }
-        
+
+        let fee = cost * 0.0020
+        let record = TradeRecord(symbol: symbol, type: .buy, quantity: qty,
+                                 price: price, fee: fee, totalAmount: totalCost)
+        tradeHistory.insert(record, at: 0)
+
         saveHoldings()
         saveCash()
+        saveTradeHistory()
         Task { await fetchData() }
     }
 
@@ -245,9 +255,15 @@ final class PortfolioViewModel: ObservableObject {
         }
         
         cashBalance += netRevenue
-        
+
+        let sellFee = revenue * 0.0030
+        let sellRecord = TradeRecord(symbol: symbol, type: .sell, quantity: sellQty,
+                                     price: currentPrice, fee: sellFee, totalAmount: netRevenue)
+        tradeHistory.insert(sellRecord, at: 0)
+
         saveHoldings()
         saveCash()
+        saveTradeHistory()
         Task { await fetchData() }
     }
 
@@ -319,6 +335,18 @@ final class PortfolioViewModel: ObservableObject {
             totalDepositedCash = UserDefaults.standard.double(forKey: depositedKey)
         } else {
             totalDepositedCash = 50_000_000.0
+        }
+    }
+
+    private func saveTradeHistory() {
+        guard let encoded = try? JSONEncoder().encode(tradeHistory) else { return }
+        UserDefaults.standard.set(encoded, forKey: tradeHistoryKey)
+    }
+
+    private func loadTradeHistory() {
+        if let data    = UserDefaults.standard.data(forKey: tradeHistoryKey),
+           let decoded = try? JSONDecoder().decode([TradeRecord].self, from: data) {
+            tradeHistory = decoded
         }
     }
 

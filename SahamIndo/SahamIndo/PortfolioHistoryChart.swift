@@ -52,28 +52,37 @@ extension PortfolioValuePoint {
         }
     }
 
-    static func generate(from items: [PortfolioItem], days: Int = 360) -> [PortfolioValuePoint] {
+    static func generate(from items: [PortfolioItem], days: Int = 360, startDate: Date? = nil) -> [PortfolioValuePoint] {
         guard !items.isEmpty else { return [] }
 
         let cal   = Calendar.current
         let today = cal.startOfDay(for: Date())
-        var totals = Array(repeating: 0.0, count: days)
+
+        let actualDays: Int
+        if let start = startDate {
+            let diff = cal.dateComponents([.day], from: cal.startOfDay(for: start), to: today).day ?? 0
+            actualDays = max(diff + 1, 2)
+        } else {
+            actualDays = days
+        }
+
+        var totals = Array(repeating: 0.0, count: actualDays)
 
         for item in items {
             guard item.quantity > 0 else { continue }
-            var prices = Array(repeating: 0.0, count: days)
-            prices[days - 1] = item.price
+            var prices = Array(repeating: 0.0, count: actualDays)
+            prices[actualDays - 1] = item.price
             var rng = SystemRandomNumberGenerator()
-            for i in stride(from: days - 2, through: 0, by: -1) {
+            for i in stride(from: actualDays - 2, through: 0, by: -1) {
                 let vol    = item.price * 0.015
                 let change = Double.random(in: -vol...vol, using: &rng)
                 prices[i]  = max(prices[i + 1] - change, 50)
             }
-            for i in 0..<days { totals[i] += prices[i] * item.quantity }
+            for i in 0..<actualDays { totals[i] += prices[i] * item.quantity }
         }
 
-        return (0..<days).map { i in
-            let date = cal.date(byAdding: .day, value: i - (days - 1), to: today)!
+        return (0..<actualDays).map { i in
+            let date = cal.date(byAdding: .day, value: i - (actualDays - 1), to: today)!
             return PortfolioValuePoint(date: date, value: totals[i])
         }
     }

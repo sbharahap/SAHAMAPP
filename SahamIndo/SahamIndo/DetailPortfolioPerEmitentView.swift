@@ -58,12 +58,19 @@ struct DetailPortfolioPerEmitentView: View {
 
     // MARK: - Body
 
+    private var tradeRecords: [TradeRecord] {
+        vm.tradeHistory.filter { $0.symbol == item.symbol }
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
                 stockHeaderCard
                 chartSection
                 holdingDetailsCard
+                if !tradeRecords.isEmpty {
+                    tradeHistorySection
+                }
                 actionButtons
             }
             .padding(16)
@@ -266,6 +273,69 @@ struct DetailPortfolioPerEmitentView: View {
         }
     }
 
+    // MARK: - Trade History Section
+
+    private var tradeHistorySection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Riwayat Transaksi")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.primary)
+                Spacer()
+                Text("\(tradeRecords.count) transaksi")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+
+            Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
+
+            VStack(spacing: 0) {
+                ForEach(tradeRecords) { record in
+                    VStack(spacing: 0) {
+                        HStack(spacing: 12) {
+                            // Type badge
+                            Text(record.type == .buy ? "BELI" : "JUAL")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(record.type == .buy ? .black : .white)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(record.type == .buy ? accent : red)
+                                .clipShape(Capsule())
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(Int(record.quantity)) lembar @ \(formatIDR(record.price))")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                Text(formatDateTime(record.date))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(record.type == .buy ? "-\(formatIDR(record.totalAmount))" : "+\(formatIDR(record.totalAmount))")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundColor(record.type == .buy ? red : green)
+                                Text("fee \(formatIDR(record.fee))")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 10)
+
+                        if record.id != tradeRecords.last?.id {
+                            Rectangle().fill(Color.primary.opacity(0.06)).frame(height: 1)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(cardBg)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+    }
+
     // MARK: - Helpers
 
     private func infoRow(label: String, value: String) -> some View {
@@ -283,6 +353,13 @@ struct DetailPortfolioPerEmitentView: View {
     private func formatDate(_ date: Date) -> String {
         let f = DateFormatter()
         f.dateFormat = "d MMMM yyyy"
+        f.locale = Locale(identifier: "id_ID")
+        return f.string(from: date)
+    }
+
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "d MMM yyyy, HH:mm"
         f.locale = Locale(identifier: "id_ID")
         return f.string(from: date)
     }

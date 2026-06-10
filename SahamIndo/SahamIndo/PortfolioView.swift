@@ -199,7 +199,8 @@ struct PortfolioView: View {
                 .foregroundColor(.primary)
                 .padding(.horizontal, 16)
             
-            let historyPoints = PortfolioValuePoint.generate(from: vm.items)
+            let earliestBuy = vm.holdings.compactMap { $0.purchaseDate }.min()
+            let historyPoints = PortfolioValuePoint.generate(from: vm.items, startDate: earliestBuy)
             if historyPoints.isEmpty {
                 VStack {
                     ProgressView()

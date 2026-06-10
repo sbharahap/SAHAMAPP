@@ -100,6 +100,36 @@ struct StockDataPoint: Identifiable, Equatable {
     let volume: Double
 }
 
+// MARK: - Trade Record (persisted log)
+
+struct TradeRecord: Identifiable, Codable {
+    var id:          UUID      = UUID()
+    var date:        Date
+    var symbol:      String
+    var type:        TradeType
+    var quantity:    Double
+    var price:       Double
+    var fee:         Double
+    var totalAmount: Double    // buy: total paid; sell: total received
+
+    enum TradeType: String, Codable {
+        case buy  = "buy"
+        case sell = "sell"
+    }
+
+    init(id: UUID = UUID(), date: Date = Date(), symbol: String, type: TradeType,
+         quantity: Double, price: Double, fee: Double, totalAmount: Double) {
+        self.id          = id
+        self.date        = date
+        self.symbol      = symbol
+        self.type        = type
+        self.quantity    = quantity
+        self.price       = price
+        self.fee         = fee
+        self.totalAmount = totalAmount
+    }
+}
+
 // MARK: - Portfolio Value Point (chart history)
 
 struct PortfolioValuePoint: Identifiable {
