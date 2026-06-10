@@ -686,6 +686,7 @@ struct AIInsightCardView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     // Teks animasi — dipotong jika belum di-expand dan teks panjang
+                    // SESUDAH
                     buildAttributedText(from: displayedText)
                         .font(.system(size: 14))
                         .foregroundColor(Color.primary.opacity(0.85))
@@ -694,6 +695,23 @@ struct AIInsightCardView: View {
                         .lineLimit(isLongText && !isExpanded ? 3 : nil)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .transaction { $0.animation = nil }
+                        .mask(
+                            Group {
+                                if isLongText && !isExpanded {
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: .black, location: 0.0),
+                                            .init(color: .black, location: 0.45),
+                                            .init(color: .clear, location: 1.0)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                } else {
+                                    Color.black
+                                }
+                            }
+                        )
 
                     // Tombol "Baca selengkapnya" — muncul 2 detik setelah chip dipilih, hanya jika teks panjang
                     // SESUDAH — tambahkan .frame(maxWidth: .infinity, alignment: .trailing)
