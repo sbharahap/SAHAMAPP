@@ -98,6 +98,25 @@ struct StockDataPoint: Identifiable, Equatable {
     let volume: Double
 }
 
+// MARK: - Stock Alert (persisted notification)
+
+struct StockAlert: Identifiable, Codable {
+    var id:        UUID         = UUID()
+    var date:      Date
+    var symbol:    String
+    var stockName: String?
+    var sector:    String?
+    var alertType: AlertType
+    var score:     Double
+    var aiSummary: String
+    var isRead:    Bool         = false
+
+    enum AlertType: String, Codable {
+        case strongBuy  = "strongBuy"
+        case strongSell = "strongSell"
+    }
+}
+
 // MARK: - Portfolio Value Point (chart history)
 
 struct PortfolioValuePoint: Identifiable {

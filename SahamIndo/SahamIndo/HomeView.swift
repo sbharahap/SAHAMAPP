@@ -9,8 +9,9 @@ import SwiftUI
 
 struct HomeView: View {
 
-    @EnvironmentObject private var vm:     PortfolioViewModel
-    @EnvironmentObject private var router: Router
+    @EnvironmentObject private var vm:       PortfolioViewModel
+    @EnvironmentObject private var router:   Router
+    @EnvironmentObject private var notifVM:  NotificationViewModel
 
     var body: some View {
         ScrollView {
@@ -46,6 +47,31 @@ struct HomeView: View {
                         .foregroundColor(Color(hex: "EAB308"))
                 }
                 Spacer()
+
+                // Notification bell with unread badge
+                Button(action: { router.push(.notification) }) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bell.fill")
+                            .foregroundColor(.primary)
+                            .font(.system(size: 16))
+                            .padding(8)
+                            .background(Color.primary.opacity(0.06))
+                            .clipShape(Circle())
+
+                        if notifVM.unreadCount > 0 {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 16, height: 16)
+                                Text(notifVM.unreadCount > 9 ? "9+" : "\(notifVM.unreadCount)")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                            .offset(x: 4, y: -4)
+                        }
+                    }
+                }
+
                 ResetButton { vm.resetPortfolio() }
             }
             .padding(.horizontal)
@@ -54,6 +80,7 @@ struct HomeView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { await vm.fetchData() }
+        .task { await notifVM.checkForAlerts() }
         .onAppear {
             UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(Color(hex: "FFA500"))
             UISegmentedControl.appearance().setTitleTextAttributes(
