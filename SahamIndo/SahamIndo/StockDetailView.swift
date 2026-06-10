@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - StockDetailView
 
@@ -32,12 +33,12 @@ struct StockDetailView: View {
     }
     private var displayIsPositive: Bool { displayPrice >= chartVM.startPrice }
     private var accentColor: Color {
-        displayIsPositive ? Color(hex: "22C55E") : Color(hex: "EF4444")
+        displayIsPositive ? Color(hex: "00D4AA") : Color(hex: "FF4757")
     }
     // Warna crosshair dot mengikuti posisi vs startPrice (untuk konsistensi visual)
     private var crosshairColor: Color {
         guard let pt = selectedPoint else { return accentColor }
-        return pt.close >= chartVM.startPrice ? Color(hex: "22C55E") : Color(hex: "EF4444")
+        return pt.close >= chartVM.startPrice ? Color(hex: "00D4AA") : Color(hex: "FF4757")
     }
 
     // Holding terkini dari portfolioVM
@@ -131,6 +132,12 @@ struct StockDetailView: View {
         .task {
             chartVM.symbol = item.symbol
             await chartVM.fetchData()
+        }
+        .onReceive(
+            Timer.publish(every: 5 * 60, on: .main, in: .common).autoconnect()
+        ) { _ in
+            guard chartVM.selectedRange == .oneDay else { return }
+            Task { await chartVM.fetchData() }
         }
     }
     
@@ -497,8 +504,8 @@ struct ChartCanvasView: View {
         let yBaseline = yPos(for: startP, in: chartSize)
         let yLast     = yPos(for: lastP,  in: chartSize)
 
-        let greenColor = Color(hex: "22C55E")
-        let redColor   = Color(hex: "EF4444")
+        let greenColor = Color(hex: "00D4AA")
+        let redColor   = Color(hex: "FF4757")
 
         // ── 1H: bangun OneDayLineShape.Point dari slot index ──
         let oneDayPoints: [OneDayLineShape.Point] = isOneDay ? {
