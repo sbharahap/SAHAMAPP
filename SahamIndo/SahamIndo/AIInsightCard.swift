@@ -63,7 +63,6 @@ struct AIInsightCard: View {
     @StateObject private var vm = AIInsightViewModel()
     @EnvironmentObject private var router: Router
     @EnvironmentObject private var chatbotVM: ChatbotViewModel
-
     var body: some View {
         VStack(spacing: 0) {
             if vm.isLoading {
