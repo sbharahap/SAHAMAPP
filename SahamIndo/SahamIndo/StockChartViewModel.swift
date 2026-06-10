@@ -84,15 +84,12 @@ final class StockChartViewModel: ObservableObject {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "Asia/Jakarta")!
 
+        let now        = Date()
         let totalSlots = Self.oneDayTotalSlots   // 87
+        let refDate    = cal.startOfDay(for: candles[0].date)
 
-        // Referensi tanggal: ambil dari candle pertama
-        let refDate  = cal.startOfDay(for: candles[0].date)
-
-        // Buat 87 slot kosong
         var slots: [StockDataPoint?] = Array(repeating: nil, count: totalSlots)
 
-        // Tempatkan tiap candle ke slot yang sesuai
         for candle in candles {
             let h = cal.component(.hour,   from: candle.date)
             let m = cal.component(.minute, from: candle.date)
@@ -103,18 +100,22 @@ final class StockChartViewModel: ObservableObject {
             slots[idx] = candle
         }
 
-        // Forward-fill: slot nil → salin nilai close slot valid sebelumnya
-        // Slot 0 dijamin ada data (asumsi 09:00 selalu ada dari Yahoo)
-        for i in 1..<totalSlots {
+        // ── Hitung slot terakhir yang boleh ditampilkan (≤ now) ──────────────
+        let nowH = cal.component(.hour,   from: now)
+        let nowM = cal.component(.minute, from: now)
+        let nowMinutesSinceOpen = nowH * 60 + nowM - Self.oneDayOpenMinutes
+        // Slot index sekarang, dibulatkan ke bawah (belum tentu ada candlenya)
+        let currentSlotIdx = max(0, min(nowMinutesSinceOpen / 5, totalSlots - 1))
+
+        // Forward-fill hanya sampai currentSlotIdx
+        for i in 1...currentSlotIdx {
             if slots[i] == nil, let prev = slots[i - 1] {
-                // Buat StockDataPoint baru dengan timestamp slot ini,
-                // tapi semua harga = close slot sebelumnya (flat line visual)
                 let slotMinutes = Self.oneDayOpenMinutes + i * 5
-                let slotDate    = cal.date(
-                    bySettingHour:   slotMinutes / 60,
-                    minute:          slotMinutes % 60,
-                    second:          0,
-                    of:              refDate
+                let slotDate = cal.date(
+                    bySettingHour:  slotMinutes / 60,
+                    minute:         slotMinutes % 60,
+                    second:         0,
+                    of:             refDate
                 ) ?? prev.date
 
                 slots[i] = StockDataPoint(
@@ -123,13 +124,13 @@ final class StockChartViewModel: ObservableObject {
                     open:   prev.close,
                     high:   prev.close,
                     low:    prev.close,
-                    volume: 0          // volume 0 menandai slot sintetis
+                    volume: 0
                 )
             }
         }
 
-        // Buang slot yang masih nil (hanya mungkin terjadi kalau slot 0 kosong)
-        return slots.compactMap { $0 }
+        // Ambil slot 0...currentSlotIdx saja — slot masa depan tidak dirender
+        return slots[0...currentSlotIdx].compactMap { $0 }
     }
 }
 
