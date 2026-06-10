@@ -585,19 +585,17 @@ struct AIInsightCardView: View {
         ),
     ]
 
-    // Teks plain terpanjang — dihitung sekali, tidak pernah berubah
-    private var longestPlainText: String {
-        chips.map(\.plainText).max(by: { $0.count < $1.count }) ?? ""
-    }
+    // Threshold: teks dianggap "panjang" jika lebih dari N kata
+    private let readMoreThreshold = 30
 
     @State private var selectedChip: InsightChip
     @State private var isPulsing:    Bool     = false
     @State private var wordIndex:    Int      = 0
     @State private var targetWords:  [String] = []
     @State private var timer:        Timer?   = nil
-    @State private var selectedIndex = 0
-    @State private var isExpanded:   Bool     = false
-
+    @State private var selectedIndex  = 0
+    @State private var isExpanded:    Bool     = false
+    @State private var showReadMore:  Bool     = false
     init() {
         let first = InsightChip(
             label: "Analisis Teknikal",
@@ -613,7 +611,7 @@ struct AIInsightCardView: View {
     var body: some View {
         VStack(spacing: 0) {
 
-            // ── Card Content (clipped to 200px when collapsed) ──
+            // ── Card Content ──
             VStack(alignment: .leading, spacing: 12) {
 
                 // ── Header badge ──
@@ -648,83 +646,66 @@ struct AIInsightCardView: View {
                 }
 
                 // ── Insight text ──
-                ZStack(alignment: .topLeading) {
+                let isLongText = targetWords.count > readMoreThreshold
 
-                    // Anchor: teks terpanjang, TIDAK PERNAH BERUBAH → container stabil
-                    Text(longestPlainText)
-                        .font(.system(size: 14))
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .opacity(0)
-
-                    // Teks animasi
+                VStack(alignment: .leading, spacing: 8) {
+                    // Teks animasi — dipotong jika belum di-expand dan teks panjang
                     buildAttributedText(from: displayedText)
                         .font(.system(size: 14))
                         .foregroundColor(Color.primary.opacity(0.85))
                         .lineSpacing(4)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .transaction { $0.animation = nil }  // blokir semua animasi SwiftUI pada container ini
+                        .lineLimit(isLongText && !isExpanded ? 3 : nil)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .transaction { $0.animation = nil }
 
-                // ── Chips ──
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(Array(chips.enumerated()), id: \.element.id) { index, chip in
-                            InsightChipView(
-                                label: chip.label,
-                                isActive: selectedIndex == index,
-                                accent: accent
-                            ) {
-                                selectedIndex = index
-                                selectedChip = chip
-                                startTyping(text: chip.text)
+                    // Tombol "Baca selengkapnya" — muncul 2 detik setelah chip dipilih, hanya jika teks panjang
+                    if isLongText && showReadMore {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isExpanded.toggle()
                             }
+                        }) {
+                            HStack(spacing: 4) {
+                                Text(isExpanded ? "Sembunyikan" : "Baca selengkapnya")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .foregroundColor(accent)
                         }
+                        .buttonStyle(.plain)
+                        .transition(.opacity)
                     }
                 }
+                .frame(maxWidth: .infinity, minHeight: 80, alignment: .topLeading)
+
             }
             .padding(12)
             .frame(maxWidth: .infinity)
-            // Collapse ke 200px saat tidak di-expand, fade bottom edge
-            .frame(height: isExpanded ? nil : 150, alignment: .top)
-            .clipped()
-            .overlay(alignment: .bottom) {
-                // Fade gradient — hanya tampil saat collapsed
-                if !isExpanded {
-                    LinearGradient(
-                        colors: [
-                            Color.appCardBackground.opacity(0),
-                            Color.appCardBackground.opacity(0.85),
-                            Color.appCardBackground
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 48)
-                    .allowsHitTesting(false)
-                }
-            }
 
-            // ── Expand / Collapse button ──
-            Button(action: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    isExpanded.toggle()
+            // ── Chips — selalu tampil, tidak ikut di-clip ──
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(Array(chips.enumerated()), id: \.element.id) { index, chip in
+                        InsightChipView(
+                            label: chip.label,
+                            isActive: selectedIndex == index,
+                            accent: accent
+                        ) {
+                            selectedIndex = index
+                            selectedChip = chip
+                            isExpanded = false
+                            startTyping(text: chip.text)
+                        }
+                    }
                 }
-            }) {
-                HStack(spacing: 4) {
-                    Text(isExpanded ? "Sembunyikan" : "Baca Selengkapnya")
-                        .font(.system(size: 11, weight: .semibold))
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
-                }
-                .foregroundColor(accent)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(accent.opacity(0.06))
+                .padding(.horizontal, 12)
             }
-            .buttonStyle(.plain)
+            .padding(.bottom, 10)
+
         }
+        .frame(minHeight: 150, alignment: .top)
         .background(Color(hex: "EAB308").opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
@@ -799,13 +780,32 @@ struct AIInsightCardView: View {
 
     private func startTyping(text: String) {
         stopTimer()
-        targetWords = text.components(separatedBy: " ")
-        wordIndex   = 0
+        showReadMore  = false
+        targetWords   = text.components(separatedBy: " ")
+        wordIndex     = 0
 
         timer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: true) { t in
             if wordIndex < targetWords.count {
                 wordIndex += 1
+
+                // Tampilkan tombol tepat saat kata ke-readMoreThreshold terketik
+                // (artinya teks sudah memenuhi minHeight container)
+                if wordIndex == readMoreThreshold && !showReadMore {
+                    DispatchQueue.main.async {
+                        withAnimation(.easeIn(duration: 0.3)) {
+                            showReadMore = true
+                        }
+                    }
+                }
             } else {
+                // Teks pendek (tidak sampai threshold) — tetap munculkan tombol saat selesai
+                if !showReadMore {
+                    DispatchQueue.main.async {
+                        withAnimation(.easeIn(duration: 0.3)) {
+                            showReadMore = true
+                        }
+                    }
+                }
                 t.invalidate()
                 timer = nil
             }
