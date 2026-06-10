@@ -24,7 +24,7 @@ struct MainTabView: View {
                 PortfolioNavigationView()
             }
 
-            Tab("Chat Agent",
+            Tab("Chatbot",
                 systemImage: "sparkles.square.filled.on.square",
                 value: "assets") {
                 ChatbotView()

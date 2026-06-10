@@ -163,7 +163,7 @@ struct StockDetailView: View {
                     showTradeSheet = true
                 }) {
                     HStack(spacing: 6) {
-                        Image(systemName: "arrow.up.arrow.down.circle.fill")
+                        Image(systemName: "arrow.left.arrow.right")
                             .font(.system(size: 15))
                         Text("Trade")
                             .font(.system(size: 14, weight: .bold))

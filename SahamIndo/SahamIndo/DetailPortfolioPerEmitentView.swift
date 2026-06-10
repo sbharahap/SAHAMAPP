@@ -241,23 +241,11 @@ struct DetailPortfolioPerEmitentView: View {
 
     private var actionButtons: some View {
         HStack(spacing: 12) {
-            Button(action: { showTradeSheet = true }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.left.arrow.right")
-                    Text("Transaksi")
-                }
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.black)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(accent)
-                .cornerRadius(12)
-            }
-
+            
             Button(action: { router.push(.stockDetail(item)) }) {
                 HStack(spacing: 6) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
-                    Text("Analisis AI")
+                    Text("See Details")
                 }
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(accent)
@@ -269,6 +257,18 @@ struct DetailPortfolioPerEmitentView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(accent.opacity(0.35), lineWidth: 1)
                 )
+            }
+            Button(action: { showTradeSheet = true }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.left.arrow.right")
+                    Text("Transaksi")
+                }
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(accent)
+                .cornerRadius(12)
             }
         }
     }
