@@ -45,7 +45,7 @@ struct SentimentPill: View {
             self.icon     = "exclamationmark.circle.fill"
         default:
             self.label    = "Neutral"
-            self.hexColor = "EAB308"
+            self.hexColor = "FFA500"
             self.icon     = "minus.circle.fill"
         }
         self.size = size

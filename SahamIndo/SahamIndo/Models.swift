@@ -75,7 +75,7 @@ struct Sentiment: Hashable {
         switch label {
         case "Recommended": return Color(hex: "22C55E")
         case "Caution": return Color(hex: "EF4444")
-        default:         return Color(hex: "EAB308")
+        default:         return Color(hex: "FFA500")
         }
     }
 

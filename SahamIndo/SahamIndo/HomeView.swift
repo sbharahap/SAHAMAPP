@@ -35,7 +35,7 @@ struct HomeView: View {
                 
                 Divider()
                     .frame(height: 1.5)
-                    .background(Color(hex: "EAB308"))
+                    .background(Color(hex: "FFA500"))
                     .padding(.horizontal)
 
                 
@@ -54,7 +54,7 @@ struct HomeView: View {
                     Text("Fin")
                         .font(.title)
                         .fontWeight(.bold)
-                        .foregroundColor(Color(hex: "EAB308"))
+                        .foregroundColor(Color(hex: "FFA500"))
                     Text("Alyze")
                         .font(.title)
                         .fontWeight(.bold)
@@ -570,11 +570,12 @@ private struct AIFeatureCardItem: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.appCardBackground)
+        .background(Color(hex: "FFA500"))
+        
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(accent.opacity(0.18), lineWidth: 0.5)
+                .strokeBorder(accent.opacity(0.30), lineWidth: 0.5)
         )
     }
 }
@@ -595,7 +596,7 @@ struct AIInsightCardView: View {
         }
     }
 
-    private let accent = Color(hex: "EAB308")
+    private let accent = Color(hex: "FFA500")
 
     @State private var chips: [InsightChip] = [
         InsightChip(
@@ -762,7 +763,7 @@ struct AIInsightCardView: View {
 
         }
         .frame(minHeight: 150, alignment: .top)
-        .background(Color(hex: "EAB308").opacity(0.05))
+        .background(Color(hex: "FFA500").opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
