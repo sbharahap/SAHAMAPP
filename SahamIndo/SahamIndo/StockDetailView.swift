@@ -26,8 +26,12 @@ struct StockDetailView: View {
     // MARK: - Computed display values (berubah saat drag)
 
     private var displayPrice: Double  { selectedPoint?.close ?? chartVM.latestPrice }
-    private var displayChange: Double { displayPrice - chartVM.startPrice }
+    private var displayChange: Double {
+        guard isDragging else { return item.change }
+        return displayPrice - chartVM.startPrice
+    }
     private var displayChangePct: Double {
+        guard isDragging else { return item.percentChange }
         guard chartVM.startPrice != 0 else { return 0 }
         return (displayChange / chartVM.startPrice) * 100
     }
