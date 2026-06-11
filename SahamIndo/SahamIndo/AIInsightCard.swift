@@ -22,6 +22,7 @@ final class AIInsightViewModel: ObservableObject {
     @Published private(set) var isLoading:   Bool         = true
     @Published private(set) var errorMessage: String?     = nil
     @Published private(set) var cacheState:  CacheState   = .live
+    @Published private(set) var lastFetched: Date?        = nil
 
     private let service = RealStockService()
 
@@ -34,16 +35,18 @@ final class AIInsightViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            detail     = try await service.fetchDetail(symbol: symbol)
-            cacheState = .live
+            detail      = try await service.fetchDetail(symbol: symbol)
+            cacheState  = .live
+            lastFetched = Date()
             print("[AIInsight] OK:", detail?.sentiment.label ?? "-")
         } catch {
             print("[AIInsight] ERROR:", error)
 
             // Fallback 1: DummyData (data lokal hardcoded)
             if let dummy = DummyData.stockDetails[symbol] {
-                detail     = dummy
-                cacheState = .noData
+                detail      = dummy
+                cacheState  = .noData
+                lastFetched = Date()
                 print("[AIInsight] fallback dummy OK:", symbol)
             } else {
                 errorMessage = "Gagal memuat insight"
@@ -108,11 +111,13 @@ struct AIInsightCard: View {
                     .padding(.vertical, 4)
                     .background(Color(hex: "EAB308").opacity(0.12))
                     .clipShape(Capsule())
-                } else {
-                    Text("Updated: Today at 07:00 WIB")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .kerning(0.8)
+                } else if let date = detail.updatedAt ?? vm.lastFetched {
+                    TimelineView(.periodic(from: Date(), by: 60)) { context in
+                        Text("Last updated: \(timeAgoString(from: date, now: context.date))")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .kerning(0.8)
+                    }
                 }
             }
 
@@ -172,6 +177,17 @@ struct AIInsightCard: View {
                 )
         )
         .transition(.opacity.combined(with: .scale(scale: 0.97)))
+    }
+
+    // MARK: - Relative time helper
+
+    private func timeAgoString(from date: Date, now: Date = Date()) -> String {
+        let diff = Int(now.timeIntervalSince(date))
+        if diff < 60 { return "baru saja" }
+        let mins = diff / 60
+        if mins < 60 { return "\(mins) mnt lalu" }
+        let hours = mins / 60
+        return "\(hours) jam lalu"
     }
 
     // MARK: - Loading Skeleton
