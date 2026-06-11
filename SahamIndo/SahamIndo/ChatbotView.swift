@@ -102,7 +102,7 @@ struct ChatbotView: View {
                                             Image(systemName: "sparkles")
                                                 .foregroundColor(accentColor)
                                                 .font(.caption)
-                                            Text("Saham.AI Agent")
+                                            Text("Finalyze AI")
                                                 .font(.system(size: 10, weight: .bold))
                                                 .foregroundColor(.secondary)
                                         }
