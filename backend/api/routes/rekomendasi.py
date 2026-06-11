@@ -18,6 +18,7 @@ from backend.api.routes.data import get_single_stock_price_stats
 def clean_alasan_text(text: str) -> str:
     if not text:
         return ""
+    import re
     lines = text.split("\n")
     cleaned_lines = []
     for line in lines:
@@ -32,7 +33,14 @@ def clean_alasan_text(text: str) -> str:
             continue
         cleaned_lines.append(line_stripped)
     # Join dengan spasi agar menjadi satu paragraf mengalir
-    return " ".join(cleaned_lines).strip()
+    joined = " ".join(cleaned_lines).strip()
+    # Hapus catatan berita kurang secara dinamis
+    joined = re.sub(r'⚠️\s*Catatan:\s*berita kurang[^\.]*\.?', '', joined)
+    joined = re.sub(r'⚠️\s*Catatan:[^\.]*\.?', '', joined)
+    # Hapus spasi ganda dan rapikan
+    joined = re.sub(r'\s+', ' ', joined).strip()
+    return joined
+
 
 
 router = APIRouter(

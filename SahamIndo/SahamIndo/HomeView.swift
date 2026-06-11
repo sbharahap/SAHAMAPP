@@ -799,7 +799,7 @@ struct AIInsightCardView: View {
         let teknikalText: String
         if let top = rekData?.rekomendasi.first {
             let alasan = (top.alasan ?? "")
-                .components(separatedBy: "⚠️Catatan:").first?
+                .components(separatedBy: "⚠️").first?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             teknikalText = "Rekomendasi utama minggu ini: **\(top.kode_saham)** (\(top.rekomendasi)). \(alasan)"
         } else {

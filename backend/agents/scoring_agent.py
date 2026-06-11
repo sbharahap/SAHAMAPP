@@ -1584,10 +1584,6 @@ async def generate_alasan(state: ScoringState) -> dict[str, Any]:
 
             # Bangun prompt
             data_fund = saham.get("data_fundamental", {})
-            catatan_data = (
-                f"\n⚠️ Catatan: {saham['catatan_data']}"
-                if saham.get("data_terbatas") else ""
-            )
 
             prompt = f"""Kamu adalah analis saham Indonesia profesional. Berikan analisis singkat untuk saham berikut.
 
@@ -1609,7 +1605,6 @@ DATA FUNDAMENTAL:
 - DER: {data_fund.get('der', 'N/A')}x
 - PE Ratio: {data_fund.get('pe_ratio', 'N/A')}x
 - Harga: Rp {data_fund.get('harga', 'N/A')}
-{catatan_data}
 
 BERITA TERKINI:
 {konteks_berita}
@@ -1813,9 +1808,6 @@ def _generate_alasan_fallback(saham: dict[str, Any]) -> str:
 
     if s_risk < 50:
         parts.append(f"Profil risiko cukup tinggi ({s_risk:.0f}/100), perlu waspada.")
-
-    if saham.get("data_terbatas"):
-        parts.append(f"⚠️ Catatan: {saham.get('catatan_data', 'data terbatas')}.")
 
     return " ".join(parts)
 
