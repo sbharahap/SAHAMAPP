@@ -26,6 +26,7 @@ struct APIClient {
         }
         
         let candidates = [
+            "http://10.67.50.233:8080",
             "http://10.67.50.204:8080",
             "http://10.67.51.0:8080",
             "http://localhost:8080",

@@ -108,7 +108,8 @@ final class StockChartViewModel: ObservableObject {
         let currentSlotIdx = max(0, min(nowMinutesSinceOpen / 5, totalSlots - 1))
 
         // Forward-fill hanya sampai currentSlotIdx
-        for i in 1...currentSlotIdx {
+        for i in stride(from: 1, through: currentSlotIdx, by: 1) {
+        // for i in 1...currentSlotIdx {
             if slots[i] == nil, let prev = slots[i - 1] {
                 let slotMinutes = Self.oneDayOpenMinutes + i * 5
                 let slotDate = cal.date(

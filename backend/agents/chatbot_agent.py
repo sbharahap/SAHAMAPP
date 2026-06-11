@@ -268,27 +268,19 @@ async def klasifikasi_pertanyaan(state: ChatState) -> dict[str, Any]:
         jenis = "perbandingan"
     elif len(saham_ditemukan) == 1:
         jenis = "spesifik"
-    elif is_umum:
-        jenis = "umum"
-    elif len(saham_ditemukan) == 0:
-        # Tidak ada saham terdeteksi dan bukan pertanyaan umum
-        # Coba tanya LLM apakah ini pertanyaan saham
+    else:
+        # Jika tidak ada kode saham terdeteksi, selalu gunakan LLM untuk klasifikasi
+        # untuk memastikan relevansi dan menghindari kecocokan kata kunci semu.
         jenis = await _klasifikasi_dengan_llm(pertanyaan, riwayat)
-        if jenis == "ambigu" and not riwayat:
-            # Pertanyaan pertama dan ambigu — minta klarifikasi
-            logger.info(f"   ❓ Pertanyaan ambigu, minta klarifikasi")
+        if jenis == "ambigu":
+            logger.info(f"   ❓ Pertanyaan tidak relevan / ambigu, kembalikan penolakan")
             return {
                 "jenis_pertanyaan": "ambigu",
                 "saham_yang_ditanyakan": [],
                 "jawaban_final": (
-                    "Saya ingin membantu! Bisa tolong sebutkan kode atau nama "
-                    "saham yang Anda maksud? Contoh: BBCA, Bank BCA, Telkom, dll. "
-                    "Atau jika ingin tanya tentang pasar secara umum, silakan "
-                    "tanyakan tentang IHSG, sektor tertentu, atau kondisi ekonomi."
+                    "Mohon maaf, saya hanya dapat menjawab pertanyaan seputar analisis saham, emiten IDX, investasi, dan ekonomi makro."
                 ),
             }
-    else:
-        jenis = "umum"
 
     logger.info(
         f"   📋 Jenis: {jenis}, Saham: {saham_ditemukan or '(tidak spesifik)'}"
@@ -329,7 +321,7 @@ async def _klasifikasi_dengan_llm(
 - "spesifik": tentang satu saham tertentu
 - "perbandingan": membandingkan 2 atau lebih saham
 - "umum": tentang pasar, sektor, atau ekonomi secara umum
-- "ambigu": tidak jelas apa yang ditanyakan, perlu klarifikasi
+- "ambigu": tidak jelas apa yang ditanyakan, atau sama sekali TIDAK RELEVAN (out of scope) dengan dunia saham, pasar modal, emiten IDX, keuangan, investasi, atau analisis makroekonomi.
 {riwayat_teks}
 Pertanyaan: "{pertanyaan}"
 
@@ -443,7 +435,7 @@ async def ambil_konteks(state: ChatState) -> dict[str, Any]:
                     "rekomendasi", "top 10", "saham terbaik", "pilihan saham",
                     "rekomendasi minggu", "scoring", "saham bagus"
                 ]
-            )
+            ) and not saham_list
             if minta_rekomendasi:
                 # Cari tanggal scoring terakhir di DB
                 stmt_date = (
@@ -717,7 +709,7 @@ ATURAN FORMAT:
 5. Jawab dalam Bahasa Indonesia yang natural dan mudah dipahami
 6. Maksimal {word_limit} kata, padat dan informatif
 7. Jangan gunakan format markdown kompleks
-8. Sertakan disclaimer singkat bahwa ini bukan saran investasi profesional
+8. HANYA jawab pertanyaan user secara langsung, jangan menambahkan disclaimer bukan saran investasi di dalam bubble jawaban (disclaimer sudah ada di luar bubble).
 9. {instruksi}
 10. Akhiri jawaban dengan baris baru dan tulis confidence score-mu (0.0-1.0) dalam format: [CONFIDENCE: X.X]
     - Berikan confidence tinggi (>0.7) HANYA jika dokumen relevan mendukung jawaban secara langsung
@@ -890,9 +882,8 @@ def _generate_jawaban_fallback(
             "menyebutkan kode saham spesifik (contoh: BBCA, TLKM)."
         )
 
-    parts.append(
-        "\n⚠️ Disclaimer: Informasi ini bukan saran investasi profesional."
-    )
+    # Tidak ada tambahan disclaimer di akhir jawaban karena sudah ada di bawah bubble
+    pass
 
     return "\n".join(parts)
 

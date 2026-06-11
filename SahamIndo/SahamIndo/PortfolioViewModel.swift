@@ -273,7 +273,13 @@ final class PortfolioViewModel: ObservableObject {
             holdings[i].totalCostBasis = 0
             holdings[i].purchaseDate   = nil
         }
+        cashBalance = 0.0
+        totalDepositedCash = 0.0
+        tradeHistory = []
+        
         saveHoldings()
+        saveCash()
+        saveTradeHistory()
         Task { await fetchData() }
     }
 
