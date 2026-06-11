@@ -26,12 +26,9 @@ struct APIClient {
         }
         
         let candidates = [
-            "http://10.67.50.233:8080",
-            "http://10.67.50.204:8080",
-            "http://10.67.51.0:8080",
-            "http://localhost:8080",
-            "http://127.0.0.1:8080",
-            "http://MacBook-Pro-Satria.local:8080",
+            "http://100.121.215.111:8080",
+            "http://100.118.29.16:8080",
+            "http://100.70.203.11:8080",
         ]
         
         let resolved = await withTaskGroup(of: String?.self, returning: String?.self) { group in
