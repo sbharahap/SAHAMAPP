@@ -27,7 +27,7 @@ from backend.data.collectors.fundamental_collector import collect_fundamental_ba
 from backend.data.collectors.xbrl_collector import collect_xbrl_fundamental
 from backend.data.collectors.makro_collector import collect_makro
 from backend.data.preprocessors.data_cleaner import clean_berita, normalize_fundamental, hitung_sentimen_sederhana, hitung_sentimen_qwen
-from backend.rag.indexer import index_batch_berita
+from backend.rag.indexer import index_batch_berita, index_laporan_keuangan
 from backend.agents.scoring_agent import jalankan_scoring
 import backend.system_notifier as notifier
 
@@ -56,6 +56,101 @@ SAHAM_DEFAULT = [
     {"kode": "AMRT", "nama_perusahaan": "Sumber Alfaria Trijaya Tbk", "sektor": "Consumer Staples", "sub_sektor": "Supermarkets & Convenience Stores"},
     {"kode": "MDKA", "nama_perusahaan": "Merdeka Copper Gold Tbk", "sektor": "Basic Materials", "sub_sektor": "Metals & Mining"},
 ]
+
+
+# ============================================================
+# Helper Functions — Format Teks Laporan Keuangan untuk RAG
+# ============================================================
+
+def _format_rupiah(value: float | int | None) -> str:
+    """
+    Format angka Rupiah menjadi triliun/miliar/juta untuk keterbacaan natural.
+    Contoh: 1_234_567_890_000 -> "Rp 1.23 triliun"
+    """
+    if value is None:
+        return "tidak tersedia"
+    try:
+        v = float(value)
+    except (ValueError, TypeError):
+        return "tidak tersedia"
+
+    abs_val = abs(v)
+    sign = "-" if v < 0 else ""
+    if abs_val >= 1e12:
+        return f"{sign}Rp {abs_val/1e12:.2f} triliun"
+    if abs_val >= 1e9:
+        return f"{sign}Rp {abs_val/1e9:.2f} miliar"
+    if abs_val >= 1e6:
+        return f"{sign}Rp {abs_val/1e6:.2f} juta"
+    return f"{sign}Rp {abs_val:,.0f}"
+
+
+def _buat_teks_laporan_keuangan(
+    kode: str,
+    nama_perusahaan: str | None,
+    sektor: str | None,
+    xbrl_data: dict,
+) -> str:
+    """
+    Susun teks naratif ringkas dari data XBRL untuk di-embed ke ChromaDB.
+
+    Teks ditulis dengan gaya semi-naratif Bahasa Indonesia agar embedding BGE-M3
+    bisa menangkap konteks finansial dengan baik, dan chatbot RAG bisa
+    me-retrieve serta menjawab pertanyaan kualitatif tentang laporan keuangan.
+    """
+    tahun = xbrl_data.get("tahun", "tidak diketahui")
+    periode = xbrl_data.get("periode", "Audit")
+    nama = nama_perusahaan or kode
+    sektor_txt = sektor or "tidak diketahui"
+
+    aset = _format_rupiah(xbrl_data.get("total_assets"))
+    liabilitas = _format_rupiah(xbrl_data.get("total_liabilities"))
+    ekuitas = _format_rupiah(xbrl_data.get("total_equity"))
+    laba = _format_rupiah(xbrl_data.get("net_profit"))
+
+    roe = xbrl_data.get("roe")
+    der = xbrl_data.get("der")
+    eps = xbrl_data.get("eps")
+
+    roe_txt = f"{roe:.2f}%" if roe is not None else "tidak tersedia"
+    der_txt = f"{der:.2f}x" if der is not None else "tidak tersedia"
+    eps_txt = f"Rp {eps:,.2f}" if eps is not None else "tidak tersedia"
+
+    # Interpretasi sederhana untuk membantu chatbot memberikan konteks kualitatif
+    interpretasi = []
+    if roe is not None:
+        if roe >= 15:
+            interpretasi.append(f"ROE {roe:.2f}% tergolong tinggi, menandakan efisiensi modal yang baik.")
+        elif roe >= 8:
+            interpretasi.append(f"ROE {roe:.2f}% tergolong moderat.")
+        elif roe > 0:
+            interpretasi.append(f"ROE {roe:.2f}% tergolong rendah.")
+        else:
+            interpretasi.append(f"ROE {roe:.2f}% negatif, perusahaan mengalami kerugian relatif terhadap ekuitas.")
+
+    if der is not None:
+        if der <= 1.0:
+            interpretasi.append(f"DER {der:.2f}x rendah, struktur permodalan konservatif.")
+        elif der <= 2.0:
+            interpretasi.append(f"DER {der:.2f}x moderat.")
+        else:
+            interpretasi.append(f"DER {der:.2f}x tinggi, perusahaan memiliki leverage utang yang signifikan.")
+
+    interpretasi_str = " ".join(interpretasi) if interpretasi else ""
+
+    teks = (
+        f"Laporan Keuangan {nama} ({kode}) — Periode {periode} Tahun {tahun}. "
+        f"Sektor: {sektor_txt}. "
+        f"Total Aset perusahaan tercatat sebesar {aset}, "
+        f"dengan Total Liabilitas {liabilitas} dan Total Ekuitas {ekuitas}. "
+        f"Laba Bersih yang diatribusikan ke pemilik entitas induk adalah {laba}. "
+        f"Rasio finansial utama: ROE (Return on Equity) {roe_txt}, "
+        f"DER (Debt to Equity Ratio) {der_txt}, dan EPS (Earnings Per Share) {eps_txt}. "
+    )
+    if interpretasi_str:
+        teks += f"Interpretasi: {interpretasi_str}"
+
+    return teks.strip()
 
 
 async def seed_saham_if_empty() -> None:
@@ -277,10 +372,14 @@ async def scrape_fundamental_job() -> None:
     logger.info("⏰ Memulai background job: Scraping Fundamental...")
     set_progress("scrape_fundamental", 5, "running", "Mengambil daftar emiten...")
     try:
-        # 1. Ambil daftar semua kode saham
+        # 1. Ambil daftar semua kode saham + metadata (nama & sektor) untuk teks RAG
         async with async_session() as session:
-            result = await session.execute(select(Saham.kode))
-            kode_saham_list = [row for row in result.scalars().all()]
+            result = await session.execute(select(Saham.kode, Saham.nama_perusahaan, Saham.sektor))
+            saham_rows = result.all()
+            kode_saham_list = [row[0] for row in saham_rows]
+            saham_meta: dict[str, dict[str, str | None]] = {
+                row[0]: {"nama_perusahaan": row[1], "sektor": row[2]} for row in saham_rows
+            }
 
         if not kode_saham_list:
             logger.warning("⚠️ Tidak ada kode saham terdaftar di DB.")
@@ -294,6 +393,7 @@ async def scrape_fundamental_job() -> None:
 
         # 3. Bersihkan dan simpan ke PostgreSQL
         saved_count = 0
+        indexed_laporan_count = 0
         total_stocks = len(raw_fund)
         async with async_session() as session:
             for index, item in enumerate(raw_fund):
@@ -301,7 +401,7 @@ async def scrape_fundamental_job() -> None:
                     kode = item.get("kode_saham")
                     percent = int(20 + (index / max(total_stocks, 1)) * 80)
                     set_progress("scrape_fundamental", percent, "running", f"Memproses fundamental & XBRL {kode} ({index+1}/{total_stocks})...")
-                    
+
                     if kode:
                         logger.info(f"🔍 Mengambil data XBRL IDX untuk {kode}...")
                         xbrl_data = await collect_xbrl_fundamental(kode)
@@ -309,7 +409,7 @@ async def scrape_fundamental_job() -> None:
                             item["roe"] = xbrl_data.get("roe")
                             item["eps"] = xbrl_data.get("eps")
                             item["der"] = xbrl_data.get("der")
-                            
+
                             # Rekalkulasi PE & PBV menggunakan harga penutupan terupdate
                             harga = item.get("harga_terakhir")
                             if harga is not None:
@@ -317,7 +417,34 @@ async def scrape_fundamental_job() -> None:
                                     item["pe_ratio"] = round(harga / item["eps"], 2)
                                     if item["roe"] is not None:
                                         item["pbv"] = round(item["pe_ratio"] * (item["roe"] / 100.0), 2)
-                        
+
+                            # 🆕 Index ringkasan laporan keuangan ke ChromaDB (collection: laporan_keuangan)
+                            # Dibungkus try/except agar kegagalan indexing tidak menggagalkan job utama
+                            try:
+                                meta = saham_meta.get(kode, {})
+                                teks_laporan = _buat_teks_laporan_keuangan(
+                                    kode=kode,
+                                    nama_perusahaan=meta.get("nama_perusahaan"),
+                                    sektor=meta.get("sektor"),
+                                    xbrl_data=xbrl_data,
+                                )
+                                tahun_lap = xbrl_data.get("tahun", "?")
+                                periode_lap = xbrl_data.get("periode", "Audit")
+                                chunks = await index_laporan_keuangan(
+                                    teks=teks_laporan,
+                                    kode_saham=kode,
+                                    periode=f"{periode_lap} {tahun_lap}",
+                                    sumber="idx_xbrl",
+                                )
+                                if chunks > 0:
+                                    indexed_laporan_count += 1
+                                    logger.info(
+                                        f"📚 Laporan keuangan {kode} ({periode_lap} {tahun_lap}) "
+                                        f"berhasil di-index ke ChromaDB ({chunks} chunk)."
+                                    )
+                            except Exception as idx_err:
+                                logger.error(f"❌ Gagal index laporan keuangan {kode} ke ChromaDB: {idx_err}")
+
                         # Delay kecil agar sopan ke IDX API
                         await asyncio.sleep(1.0)
 
@@ -360,6 +487,7 @@ async def scrape_fundamental_job() -> None:
                     logger.error(f"❌ Gagal memproses fundamental {item.get('kode_saham', '')}: {e}")
             await session.commit()
         logger.info(f"💾 {saved_count} data fundamental berhasil disimpan/diperbarui di PostgreSQL.")
+        logger.info(f"📚 {indexed_laporan_count} ringkasan laporan keuangan berhasil di-index ke ChromaDB.")
         set_progress("scrape_fundamental", 100, "idle", "Selesai")
 
     except Exception as e:
