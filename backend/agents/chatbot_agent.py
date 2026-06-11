@@ -789,9 +789,9 @@ def _parse_jawaban_dan_confidence(response: str) -> tuple[str, float]:
     """
     confidence = 0.7  # Default
 
-    # Cari pattern [CONFIDENCE: X.X]
+    # Cari pattern confidence dengan regex yang sangat fleksibel (mendukung **, *, [, atau teks langsung)
     match = re.search(
-        r"\[CONFIDENCE:\s*([\d.]+)\]",
+        r"(?:\*\*|\*|\[)*\bCONFIDENCE(?:\s*SCORE)?:\s*([\d.]+)(?:\*\*|\*|\])*",
         response,
         re.IGNORECASE,
     )
@@ -807,8 +807,8 @@ def _parse_jawaban_dan_confidence(response: str) -> tuple[str, float]:
     else:
         jawaban = response.strip()
 
-    # Bersihkan trailing whitespace dan newlines
-    jawaban = jawaban.rstrip()
+    # Bersihkan sisa-sisa karakter markdown pembungkus di bagian akhir jika ada (seperti *, [, \n, dll)
+    jawaban = re.sub(r'[\s\*\[\]\-\:_]+$', '', jawaban)
 
     return jawaban, confidence
 
