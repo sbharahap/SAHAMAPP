@@ -51,14 +51,14 @@ struct HomeView: View {
         .safeAreaInset(edge: .top) {
             HStack {
                 HStack(spacing: 0) {
-                    Text("SAHAM")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                    Text(".AI")
+                    Text("Fin")
                         .font(.title)
                         .fontWeight(.bold)
                         .foregroundColor(Color(hex: "EAB308"))
+                    Text("Alyze")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
                 }
                 Spacer()
                 NotificationButton(unreadCount: notifVM.unreadCount) { router.push(.notification) }
@@ -606,10 +606,10 @@ struct AIInsightCardView: View {
             label: "Sentimen Berita",
             text:  "Sentimen media sosial terhadap **GGRM** meningkat signifikan. Buzz positif naik **34%** dalam 48 jam terakhir."
         ),
-        InsightChip(
-            label: "Asing Net Buy",
-            text:  "Investor asing net buy **Rp 1,2 triliun** hari ini. Sektor **energi & infrastruktur** jadi pilihan utama."
-        ),
+//        InsightChip(
+//            label: "Asing Net Buy",
+//            text:  "Investor asing net buy **Rp 1,2 triliun** hari ini. Sektor **energi & infrastruktur** jadi pilihan utama."
+//        ),
         InsightChip(
             label: "Makro IDR",
             text:  "Rupiah menguat ke **Rp 15.820/USD** didukung surplus neraca dagang. **BI** diprediksi tahan suku bunga bulan ini."
@@ -859,7 +859,7 @@ struct AIInsightCardView: View {
         let newChips = [
             InsightChip(label: "Analisis Teknikal", text: teknikalText),
             InsightChip(label: "Sentimen Berita",   text: sentimenText),
-            InsightChip(label: "Asing Net Buy",     text: asingText),
+            //InsightChip(label: "Asing Net Buy",     text: asingText),
             InsightChip(label: "Makro IDR",         text: makroText)
         ]
 

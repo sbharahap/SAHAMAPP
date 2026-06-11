@@ -261,7 +261,7 @@ struct DetailPortfolioPerEmitentView: View {
             Button(action: { showTradeSheet = true }) {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.left.arrow.right")
-                    Text("Transaksi")
+                    Text("Trade")
                 }
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.black)
