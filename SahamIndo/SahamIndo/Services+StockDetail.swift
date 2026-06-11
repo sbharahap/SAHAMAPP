@@ -15,6 +15,7 @@ struct StockDetailDTO: Decodable {
     let change:               Double
     let pct_change:           Double
     let score:                Double?
+    let updatedAt:            Date?           // when AI last generated this summary
 
     enum CodingKeys: String, CodingKey {
         case symbol = "kode_saham"
@@ -26,6 +27,7 @@ struct StockDetailDTO: Decodable {
         case change = "change"
         case pct_change = "pct_change"
         case score = "skor_total"
+        case updatedAt = "updated_at"
     }
 }
 
@@ -41,6 +43,7 @@ struct StockDetail {
     let change:      Double
     let pctChange:   Double
     let score:       Double
+    let updatedAt:   Date?
 
     init(
         symbol: String,
@@ -51,7 +54,8 @@ struct StockDetail {
         price: Double,
         change: Double,
         pctChange: Double,
-        score: Double = 50.0
+        score: Double = 50.0,
+        updatedAt: Date? = nil
     ) {
         self.symbol = symbol
         self.name = name
@@ -62,6 +66,7 @@ struct StockDetail {
         self.change = change
         self.pctChange = pctChange
         self.score = score
+        self.updatedAt = updatedAt
     }
 }
 
@@ -123,7 +128,8 @@ extension RealStockService {
             price:     dto.price,
             change:    dto.change,
             pctChange: dto.pct_change,
-            score:     dto.score ?? 50.0
+            score:     dto.score ?? 50.0,
+            updatedAt: dto.updatedAt
         )
     }
 }

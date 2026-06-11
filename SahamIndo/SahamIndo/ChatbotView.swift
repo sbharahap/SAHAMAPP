@@ -102,7 +102,7 @@ struct ChatbotView: View {
                                             Image(systemName: "sparkles")
                                                 .foregroundColor(accentColor)
                                                 .font(.caption)
-                                            Text("Saham.AI Agent")
+                                            Text("Finalyze AI")
                                                 .font(.system(size: 10, weight: .bold))
                                                 .foregroundColor(.secondary)
                                         }
@@ -203,7 +203,7 @@ struct ChatbotView: View {
                 .padding(.top, 6)
                 .background(bgColor)
             }
-            .navigationTitle("Chat Agent")
+            .navigationTitle("Chatbot")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
