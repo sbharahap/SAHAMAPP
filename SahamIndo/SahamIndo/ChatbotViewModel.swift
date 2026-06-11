@@ -47,14 +47,25 @@ final class ChatbotViewModel: ObservableObject {
         }
 
         do {
+            let requestStart = Date()
+            var firstTokenTime: Date? = nil
+
             let stream = try await APIClient.sendChatMessageStream(
                 pertanyaan: trimmed,
                 riwayat: riwayat
             )
 
             for try await chunk in stream {
+                if firstTokenTime == nil {
+                    firstTokenTime = Date()
+                    let ttft = firstTokenTime!.timeIntervalSince(requestStart)
+                    print("[Inference] Time to first token (TTFT): \(String(format: "%.2f", ttft))s")
+                }
                 messages[index].content += chunk
             }
+
+            let totalTime = Date().timeIntervalSince(requestStart)
+            print("[Inference] Total inference time: \(String(format: "%.2f", totalTime))s")
         } catch {
             self.errorMessage = error.localizedDescription
 
