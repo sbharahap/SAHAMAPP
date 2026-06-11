@@ -462,7 +462,7 @@ struct ChartCanvasView: View {
                     // Tidak ada handoff: chart tetap pakai MorphingXYLineShape (oneDayReady = false).
                     // Setelah spring selesai chart sudah berhenti di xLast — tidak perlu switch renderer.
                     oneDayReady = false
-                    withAnimation(.spring(response: 3.0, dampingFraction: 1.0)) {
+                    withAnimation(.spring(response: 1.2, dampingFraction: 1.0)) {
                         animatedData = oneDayTarget
                     }
                 }
@@ -482,7 +482,7 @@ struct ChartCanvasView: View {
                     }
                     animatedData = AnimatableChartData(points: flatPoints)
                 }
-                withAnimation(.spring(response: 3.0, dampingFraction: 1.0)) {
+                withAnimation(.spring(response: 1.55, dampingFraction: 1.0)) {
                     animatedData = target
                 }
             }
@@ -536,7 +536,7 @@ struct ChartCanvasView: View {
             AnimatableHDashLine(y: yBaseline)
                 .stroke(Color(hex: "EAB308").opacity(0.50),
                         style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-                .animation(.spring(response: 3.0, dampingFraction: 1.0), value: yBaseline)
+                .animation(.spring(response: 1.55, dampingFraction: 1.0), value: yBaseline)
 
             if isOneDay {
                 // ── 1H: semua layer (shadow + line + dot) dibungkus dalam satu ZStack ──
@@ -631,7 +631,7 @@ struct ChartCanvasView: View {
                         startPoint: .top, endPoint: .bottom
                     ))
                     .clipShape(AnimatableClipAbove(cutY: yBaseline))
-                    .animation(.spring(response: 3.0, dampingFraction: 1.0), value: yBaseline)
+                    .animation(.spring(response: 1.55, dampingFraction: 1.0), value: yBaseline)
 
                 MorphingXYAreaShape(data: animatedData, closingY: yBaseline)
                     .fill(LinearGradient(
@@ -643,17 +643,17 @@ struct ChartCanvasView: View {
                         startPoint: .bottom, endPoint: .top
                     ))
                     .clipShape(AnimatableClipBelow(cutY: yBaseline, totalHeight: chartSize.height))
-                    .animation(.spring(response: 3.0, dampingFraction: 1.0), value: yBaseline)
+                    .animation(.spring(response: 1.55, dampingFraction: 1.0), value: yBaseline)
 
                 MorphingXYLineShape(data: animatedData)
                     .stroke(greenColor, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
                     .clipShape(AnimatableClipAbove(cutY: yBaseline))
-                    .animation(.spring(response: 3.0, dampingFraction: 1.0), value: yBaseline)
+                    .animation(.spring(response: 1.55, dampingFraction: 1.0), value: yBaseline)
 
                 MorphingXYLineShape(data: animatedData)
                     .stroke(redColor, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
                     .clipShape(AnimatableClipBelow(cutY: yBaseline, totalHeight: chartSize.height))
-                    .animation(.spring(response: 3.0, dampingFraction: 1.0), value: yBaseline)
+                    .animation(.spring(response: 1.55, dampingFraction: 1.0), value: yBaseline)
             }
 
             // ── Label max & min ──────────────────────────────────────────────
@@ -691,7 +691,7 @@ struct ChartCanvasView: View {
                 AnimatableHDashLine(y: animY)
                     .stroke(dotColor.opacity(0.70),
                             style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
-                    .animation(.spring(response: 3.0, dampingFraction: 1.0), value: animY)
+                    .animation(.spring(response: 1.55, dampingFraction: 1.0), value: animY)
 
                 Circle().fill(dotColor)
                     .frame(width: 9, height: 9)
@@ -840,7 +840,11 @@ struct ChartCanvasView: View {
                     // Interpolasi nilai Y: skala i ke rentang data aktual saja
                     let activeFrac = CGFloat(lastSlotIdx) / CGFloat(totalSlots - 1)
                     let dataFrac   = (slotFrac / CGFloat(totalSlots - 1)) / max(activeFrac, 1e-6) * CGFloat(data.count - 1)
-                    let lo   = Int(dataFrac)
+//                    let lo   = Int(dataFrac)
+//                    let hi   = min(lo + 1, data.count - 1)
+//                    let frac = dataFrac - CGFloat(lo)
+//                    let val  = closes[lo] * Double(1 - frac) + closes[hi] * Double(frac)
+                    let lo   = max(0, min(Int(dataFrac), data.count - 1))  // ← clamp lo juga
                     let hi   = min(lo + 1, data.count - 1)
                     let frac = dataFrac - CGFloat(lo)
                     let val  = closes[lo] * Double(1 - frac) + closes[hi] * Double(frac)
@@ -869,7 +873,9 @@ struct ChartCanvasView: View {
 
             let points: [MorphPoint] = (0..<resampleCount).map { i in
                 let tData = Double(i) / Double(resampleCount - 1) * Double(data.count - 1)
-                let lo    = Int(tData)
+                //let lo    = Int(tData)
+                //let hi    = min(lo + 1, data.count - 1)
+                let lo    = max(0, min(Int(tData), data.count - 1))  // ← clamp lo
                 let hi    = min(lo + 1, data.count - 1)
                 let frac  = tData - Double(lo)
                 let val   = closes[lo] * (1 - frac) + closes[hi] * frac

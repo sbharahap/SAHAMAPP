@@ -203,7 +203,7 @@ struct ChatbotView: View {
                 .padding(.top, 6)
                 .background(bgColor)
             }
-            .navigationTitle("Chat Agent")
+            .navigationTitle("Chatbot")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
