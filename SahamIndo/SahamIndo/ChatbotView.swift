@@ -262,6 +262,7 @@ struct MarkdownContentView: View {
             Text(LocalizedStringKey(trimmed))
                 .font(.system(size: 14))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -429,6 +430,7 @@ struct ChatBubbleView: View {
                     } else {
                         Text(LocalizedStringKey(message.content))
                             .font(.system(size: 14))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(12)
