@@ -29,7 +29,6 @@ struct APIClient {
             "http://100.121.215.111:8080",
             "http://100.118.29.16:8080",
             "http://100.70.203.11:8080",
-
         ]
         
         let resolved = await withTaskGroup(of: String?.self, returning: String?.self) { group in
