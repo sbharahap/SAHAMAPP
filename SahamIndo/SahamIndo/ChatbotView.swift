@@ -418,7 +418,7 @@ struct ChatBubbleView: View {
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
                 if message.role == .assistant {
-                    Text("Saham.AI Agent")
+                    Text("Finalyze AI")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.secondary)
                 }

@@ -55,7 +55,9 @@ struct APIClient {
             return nil
         }
         
-        let finalBase = resolved ?? "http://MacBook-Pro-Satria.local:8080"
+        //let finalBase = resolved ?? "http://MacBook-Pro-Satria.local:8080"
+        let finalBase = resolved ?? "http://10.67.51.0:8080"
+
         verifiedBaseURL = finalBase
         print("[APIClient] Resolved baseURL: \(finalBase)")
         return finalBase

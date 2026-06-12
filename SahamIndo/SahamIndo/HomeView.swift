@@ -35,7 +35,7 @@ struct HomeView: View {
                 
                 Divider()
                     .frame(height: 1.5)
-                    .background(Color(hex: "EAB308"))
+                    .background(Color(hex: "FFA500"))
                     .padding(.horizontal)
 
                 
@@ -51,15 +51,18 @@ struct HomeView: View {
         .safeAreaInset(edge: .top) {
             HStack {
                 HStack(spacing: 0) {
-                    Text("Fin")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(Color(hex: "EAB308"))
-                    Text("Alyze")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
+                    Image("logo_icon")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundColor(Color(hex: "FFA500"))
+                    Image("logo_teks")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundColor(Color(UIColor.label))
                 }
+                .frame(height: 36) // sesuaikan dengan tinggi font .title sebelumnya
                 Spacer()
                 NotificationButton(unreadCount: notifVM.unreadCount) { router.push(.notification) }
             }
@@ -570,11 +573,12 @@ private struct AIFeatureCardItem: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.appCardBackground)
+        .background(Color(hex: "FFA500"))
+        
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(accent.opacity(0.18), lineWidth: 0.5)
+                .strokeBorder(accent.opacity(0.30), lineWidth: 0.5)
         )
     }
 }
@@ -595,7 +599,7 @@ struct AIInsightCardView: View {
         }
     }
 
-    private let accent = Color(hex: "EAB308")
+    private let accent = Color(hex: "FFA500")
 
     @State private var chips: [InsightChip] = [
         InsightChip(
@@ -628,6 +632,8 @@ struct AIInsightCardView: View {
     @State private var isExpanded:    Bool     = false
     @State private var showReadMore:  Bool     = false
     @State private var lastUpdated:   Date?    = nil
+    @State private var hasAppearedOnce:   Bool  = false
+    @State private var hasLoadedInsights: Bool  = false
     init() {
         let first = InsightChip(
             label: "Analisis Teknikal",
@@ -667,7 +673,10 @@ struct AIInsightCardView: View {
                     .overlay(Capsule().strokeBorder(accent.opacity(0.35), lineWidth: 0.5))
                     .onAppear {
                         isPulsing = true
-                        startTyping(text: selectedChip.text)
+                        if !hasAppearedOnce {
+                            hasAppearedOnce = true
+                            startTyping(text: selectedChip.text)
+                        }
                     }
                     
                     Spacer()
@@ -762,7 +771,7 @@ struct AIInsightCardView: View {
 
         }
         .frame(minHeight: 150, alignment: .top)
-        .background(Color(hex: "EAB308").opacity(0.05))
+        .background(Color(hex: "FFA500").opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -770,6 +779,8 @@ struct AIInsightCardView: View {
         )
         .padding(.horizontal, 16)
         .task {
+            guard !hasLoadedInsights else { return }
+            hasLoadedInsights = true
             await loadLiveInsights()
         }
         .onDisappear { stopTimer() }

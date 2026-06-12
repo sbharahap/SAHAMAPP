@@ -175,9 +175,9 @@ struct StockDetailView: View {
                     .foregroundColor(.black)
                     .padding(.horizontal, 28)
                     .padding(.vertical, 11)
-                    .background(Color(hex: "EAB308"))
+                    .background(Color(hex: "FFA500"))
                     .cornerRadius(8)
-                    .shadow(color: Color(hex: "EAB308").opacity(0.25), radius: 4, x: 0, y: 2)
+                    .shadow(color: Color(hex: "FFA500").opacity(0.25), radius: 4, x: 0, y: 2)
                 }
             }
             .padding(.horizontal, 16)
