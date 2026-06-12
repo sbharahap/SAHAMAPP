@@ -51,15 +51,18 @@ struct HomeView: View {
         .safeAreaInset(edge: .top) {
             HStack {
                 HStack(spacing: 0) {
-                    Text("Fin")
-                        .font(.title)
-                        .fontWeight(.bold)
+                    Image("logo_icon")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
                         .foregroundColor(Color(hex: "FFA500"))
-                    Text("Alyze")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
+                    Image("logo_teks")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundColor(Color(UIColor.label))
                 }
+                .frame(height: 36) // sesuaikan dengan tinggi font .title sebelumnya
                 Spacer()
                 NotificationButton(unreadCount: notifVM.unreadCount) { router.push(.notification) }
             }
@@ -629,6 +632,8 @@ struct AIInsightCardView: View {
     @State private var isExpanded:    Bool     = false
     @State private var showReadMore:  Bool     = false
     @State private var lastUpdated:   Date?    = nil
+    @State private var hasAppearedOnce:   Bool  = false
+    @State private var hasLoadedInsights: Bool  = false
     init() {
         let first = InsightChip(
             label: "Analisis Teknikal",
@@ -668,7 +673,10 @@ struct AIInsightCardView: View {
                     .overlay(Capsule().strokeBorder(accent.opacity(0.35), lineWidth: 0.5))
                     .onAppear {
                         isPulsing = true
-                        startTyping(text: selectedChip.text)
+                        if !hasAppearedOnce {
+                            hasAppearedOnce = true
+                            startTyping(text: selectedChip.text)
+                        }
                     }
                     
                     Spacer()
@@ -771,6 +779,8 @@ struct AIInsightCardView: View {
         )
         .padding(.horizontal, 16)
         .task {
+            guard !hasLoadedInsights else { return }
+            hasLoadedInsights = true
             await loadLiveInsights()
         }
         .onDisappear { stopTimer() }
